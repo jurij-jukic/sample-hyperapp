@@ -1,10 +1,18 @@
 # hyperapp-skeleton
 p2p application from 0 to 1
 
-TODO: Create minimum viable Hyperapp to use as a "skeleton"
+The goal of this repo is a simple skeleton app + resources folder that will allow an AI agent with access to the repository to mutate the skeleton into any kind of arbitrary app.
 
-TODO: populate resources folder with guides
-
-TODO: populate resources folder with example apps, each showing off some focused set of Hyperware app primitives
-
-FAR FUTURE TODO: setup wizard (a seperate prompting agent that goes back and forth with you? something in kit?) so it isn't so difficult to describe your apps
+```
+hyperapp-skeleton
+    [compiling skeleton app]
+    instructions.md //contains overview + map
+    resources
+        guides
+            [various md files like we've been generating]
+        example_apps
+            file-transfer
+            blockchain-interaction
+            websocket
+            [other useful example apps]
+```
