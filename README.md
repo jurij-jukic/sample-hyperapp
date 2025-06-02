@@ -21,26 +21,12 @@ A minimal, well-commented skeleton application for the Hyperware platform using 
 - Rust toolchain
 - Node.js and npm
 
-### Building and Running
+### Building
 
-1. **First time build** (installs UI dependencies):
-   ```bash
-   kit bs --hyperapp
-   ```
-
-2. **Subsequent builds**:
    ```bash
    kit b --hyperapp
    ```
 
-3. **Start the app**:
-   ```bash
-   kit s
-   ```
-
-4. **Access the app**:
-   - Open Hyperware homepage at `http://localhost:8080`
-   - Click on the 🦴 Skeleton App icon
 
 ## Project Structure
 
