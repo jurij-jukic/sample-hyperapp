@@ -486,7 +486,86 @@ const deleteItem = async (id: string) => {
 
 ---
 
-## 5. Development Workflow Issues
+## 5. Manifest & Capability Issues
+
+### ❌ Error: "failed to open file `pkg/manifest.json`"
+
+**Full Error:**
+```
+ERROR: failed to open file `/path/to/app/pkg/manifest.json`
+No such file or directory (os error 2)
+```
+
+**Root Cause:** manifest.json not generated during build
+
+**Solutions:**
+
+1. **Build properly with kit:**
+```bash
+# This generates manifest.json automatically
+kit b --hyperapp
+```
+
+2. **Check if pkg directory exists:**
+```bash
+ls -la pkg/
+# Should contain: manifest.json, your-app.wasm, ui/
+```
+
+3. **If still missing, check metadata.json:**
+```json
+// metadata.json must exist and be valid
+{
+  "package": "skeleton-app",
+  "publisher": "skeleton.os"
+}
+```
+
+**See**: [Manifest & Deployment Guide](./08-MANIFEST-AND-DEPLOYMENT.md) for details
+
+### ❌ Error: "Process does not have capability X"
+
+**Example:**
+```
+Error: Process skeleton-app:skeleton-app:user.os does not have capability vfs:distro:sys
+```
+
+**Root Cause:** Using system feature without requesting capability
+
+**Solution:** Add to manifest.json:
+```json
+"request_capabilities": [
+  "homepage:homepage:sys",
+  "http-server:distro:sys",
+  "vfs:distro:sys"  // Add missing capability
+]
+```
+
+**See**: [Capabilities Guide](./09-CAPABILITIES-GUIDE.md) for all capabilities
+
+### ❌ Error: App doesn't appear on homepage
+
+**Root Cause:** Missing homepage capability or add_to_homepage call
+
+**Solution:**
+1. Check manifest.json includes:
+```json
+"request_capabilities": [
+  "homepage:homepage:sys"  // Required!
+]
+```
+
+2. Check init function calls:
+```rust
+#[init]
+async fn initialize(&mut self) {
+    add_to_homepage("My App", Some("🚀"), Some("/"), None);
+}
+```
+
+---
+
+## 6. Development Workflow Issues
 
 ### Clean Build Process
 ```bash

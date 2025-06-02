@@ -198,9 +198,13 @@ async fn handle_remote_call(&mut self, data: String) -> Result<String, String> {
 
 ## Resources
 
-- Hyperware Documentation: [Coming Soon]
-- Example Apps: Check the `example-apps` folder
-- Community: [Coming Soon]
+- **Development Guides**: See `resources/guides/` for comprehensive documentation
+  - [Manifest & Deployment](resources/guides/08-MANIFEST-AND-DEPLOYMENT.md) - Understanding manifest.json
+  - [Capabilities Guide](resources/guides/09-CAPABILITIES-GUIDE.md) - System permissions reference
+  - [Complete Guide Index](resources/guides/README.md) - All available guides
+- **Example Apps**: Check the `example-apps` folder for working implementations
+- **Hyperware Documentation**: [Coming Soon]
+- **Community**: [Coming Soon]
 
 ## License
 

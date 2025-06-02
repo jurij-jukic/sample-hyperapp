@@ -14,6 +14,8 @@ The [`guides/`](./guides/) directory contains comprehensive documentation for bu
 - **[Frontend Guide](./guides/05-UI-FRONTEND-GUIDE.md)** - React/TypeScript development
 - **[Testing Guide](./guides/06-TESTING-DEBUGGING.md)** - Debug and test strategies
 - **[Complete Examples](./guides/07-COMPLETE-EXAMPLES.md)** - Full working apps
+- **[Manifest & Deployment](./guides/08-MANIFEST-AND-DEPLOYMENT.md)** - Understanding manifest.json
+- **[Capabilities Guide](./guides/09-CAPABILITIES-GUIDE.md)** - System permissions reference
 
 See the [Guides README](./guides/README.md) for detailed navigation help.
 
@@ -70,6 +72,8 @@ Each idea includes implementation notes and key concepts to demonstrate.
 - **Type errors** → Use JSON strings for complex types
 - **P2P failures** → Check node names and ProcessId format
 - **UI issues** → Verify /our.js is included
+- **manifest.json missing** → Run `kit b --hyperapp` to generate it
+- **Capability errors** → Check Capabilities Guide for required permissions
 
 ## 🚀 Next Steps
 

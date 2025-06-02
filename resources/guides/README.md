@@ -44,14 +44,26 @@ This directory contains comprehensive guides designed specifically for AI models
   - Use when: You need to see how everything fits together
   - Contains: Todo app, notepad, KV store, file sharing examples
 
+### For Deployment & Installation
+- **[08-MANIFEST-AND-DEPLOYMENT.md](./08-MANIFEST-AND-DEPLOYMENT.md)** - Understanding manifest.json
+  - Use when: Getting "failed to open file manifest.json" errors
+  - Contains: manifest.json structure, auto-generation, customization
+
+### For System Permissions
+- **[09-CAPABILITIES-GUIDE.md](./09-CAPABILITIES-GUIDE.md)** - Capabilities reference
+  - Use when: Unsure what capabilities to request or getting permission errors
+  - Contains: All system capabilities, security patterns, common errors
+
 ## 🔍 How to Use These Guides
 
 ### Building a New App
 1. Start with **QUICK-REFERENCE** to understand the rules
-2. Check **COMPLETE-EXAMPLES** for a similar app pattern
-3. Use **COMMON-PATTERNS** for specific features
-4. Refer to **WIT-TYPES** for data modeling
-5. Check **TROUBLESHOOTING** when errors occur
+2. Read **MANIFEST-AND-DEPLOYMENT** to understand how apps are installed
+3. Review **CAPABILITIES-GUIDE** to know what your app can access
+4. Check **COMPLETE-EXAMPLES** for a similar app pattern
+5. Use **COMMON-PATTERNS** for specific features
+6. Refer to **WIT-TYPES** for data modeling
+7. Check **TROUBLESHOOTING** when errors occur
 
 ### Adding P2P Features
 1. Read **P2P-PATTERNS** thoroughly
@@ -93,6 +105,8 @@ Need to design data types? → WIT-TYPES
 Need UI help? → UI-FRONTEND
 Need quick syntax reminder? → QUICK-REFERENCE
 Want to see full examples? → COMPLETE-EXAMPLES
+Getting manifest.json errors? → MANIFEST-AND-DEPLOYMENT
+Need to know what capabilities? → CAPABILITIES-GUIDE
 ```
 
 ### "My build is failing"

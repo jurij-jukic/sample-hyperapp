@@ -69,14 +69,18 @@ async fn get_complex(&self, _request_body: String) -> String {
 ## Build Commands
 
 ```bash
+# First time build (installs dependencies)
+kit bs --hyperapp
 
 # Regular build
 kit b --hyperapp
 
 # Clean rebuild
-rm -rf target/ ui/node_modules ui/dist
+rm -rf target/ ui/node_modules ui/dist pkg/
 kit b --hyperapp
 ```
+
+**Note**: `kit b --hyperapp` automatically generates `pkg/manifest.json`
 
 ## Project Structure
 ```
@@ -194,6 +198,8 @@ path = "../target/caller-utils"
 | "hyperware_process_lib is ambiguous" | Remove it from Cargo.toml |
 | "Type not found in WIT" | Return as JSON string instead |
 | "ProcessId parse error" | Check format: "name:package:publisher" |
+| "failed to open manifest.json" | Run `kit b --hyperapp` to generate |
+| "does not have capability" | Add to manifest.json request_capabilities |
 
 ## Testing P2P
 
@@ -215,3 +221,5 @@ kit s --fake-node bob.os
 4. **Always** set timeout on remote requests
 5. **Never** add hyperware_process_lib to Cargo.toml
 6. **When in doubt**, return JSON strings
+7. **Check** [Manifest Guide](./08-MANIFEST-AND-DEPLOYMENT.md) for deployment
+8. **Review** [Capabilities Guide](./09-CAPABILITIES-GUIDE.md) for permissions
