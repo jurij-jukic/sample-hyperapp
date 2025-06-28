@@ -29,6 +29,23 @@
 
 ## 1. Build Errors
 
+### ❌ Error: "base64ct requires Rust 1.85" or edition2024 issues
+
+**Symptoms:**
+```
+error: failed to parse manifest at `/Users/.../.cargo/registry/src/index.crates.io-6f17d22bba15001f/base64ct-1.8.0/Cargo.toml`
+feature `edition2024` is required
+```
+
+**Root Cause:** Newer versions of base64ct require Rust edition 2024 which isn't stable yet
+
+**Solution:** Pin base64ct to version 1.6.0 in your Cargo.toml
+```toml
+[dependencies]
+# ... other dependencies ...
+base64ct = "=1.6.0"  # Pin to avoid edition2024 requirement
+```
+
 ### ❌ Error: "Failed to deserialize HTTP request into HPMRequest enum"
 
 **Symptoms:**
