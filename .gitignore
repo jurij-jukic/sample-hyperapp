@@ -7,6 +7,10 @@ Cargo.lock
 /api/
 /target/
 
+# Package directory - IMPORTANT: This is intentionally NOT ignored
+# The pkg directory contains the compiled app and should be committed
+# /pkg/
+
 # UI dependencies and build
 /ui/node_modules/
 /ui/dist/
