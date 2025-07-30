@@ -13,6 +13,8 @@ async fn get_data(&self) -> Vec<Data> { }
 async fn get_data(&self, _request_body: String) -> Vec<Data> { }
 ```
 
+For detailed explanation and more examples, see [Troubleshooting Guide - Section 1](./02-TROUBLESHOOTING.md#error-failed-to-deserialize-http-request-into-hpmrequest-enum)
+
 ### 2. Frontend MUST Include `/our.js` Script
 ```html
 <head>
@@ -160,7 +162,7 @@ let result = Request::new()
 
 ## Import Requirements
 
-### Rust Backend
+### Standard Rust Imports (Use This Pattern)
 ```rust
 use hyperprocess_macro::*;
 use hyperware_process_lib::{
@@ -168,6 +170,7 @@ use hyperware_process_lib::{
     homepage::add_to_homepage
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json; // For json! macro
 ```
 
 ### Cargo.toml Dependencies

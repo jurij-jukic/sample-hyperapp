@@ -59,17 +59,6 @@ export async function getMessages() {
   return JSON.parse(response) as string[];
 }
 
-export async function sendToNode(targetNode: string, message: string) {
-  // For complex requests, we send a JSON string
-  const request = JSON.stringify({
-    target_node: targetNode,
-    message: message,
-  });
-  
-  return makeApiCall<string, string>({
-    SendToNode: request,
-  });
-}
 
 // Error handling utilities
 export function isApiError(error: unknown): error is Error {

@@ -54,7 +54,20 @@ This directory contains comprehensive guides designed specifically for AI models
   - Use when: Unsure what capabilities to request or getting permission errors
   - Contains: All system capabilities, security patterns, common errors
 
+### For Database Development
+- **[10-SQLITE-API-GUIDE.md](./10-SQLITE-API-GUIDE.md)** - Comprehensive SQLite guide
+  - Use when: Building apps that need persistent data storage
+  - Contains: Setup, basic operations, advanced patterns, complete examples
+
 ## 🔍 How to Use These Guides
+
+### Quick Start Path (For Beginners)
+If you're new to Hyperware development, follow this path:
+1. **[00-QUICK-REFERENCE](./00-QUICK-REFERENCE.md)** - Learn the critical rules (10 min)
+2. **[08-MANIFEST-AND-DEPLOYMENT](./08-MANIFEST-AND-DEPLOYMENT.md)** - Understand how apps work (5 min)
+3. **[09-CAPABILITIES-GUIDE](./09-CAPABILITIES-GUIDE.md)** - Know what you can access (10 min)
+4. **[01-COMMON-PATTERNS](./01-COMMON-PATTERNS.md)** - Copy patterns for your features (reference as needed)
+5. **[07-COMPLETE-EXAMPLES](./07-COMPLETE-EXAMPLES.md)** - See full working apps (study one similar to yours)
 
 ### Building a New App
 1. Start with **QUICK-REFERENCE** to understand the rules

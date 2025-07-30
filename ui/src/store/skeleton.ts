@@ -10,7 +10,6 @@ interface SkeletonStore extends SkeletonState {
   fetchStatus: () => Promise<void>;
   incrementCounter: (amount?: number) => Promise<void>;
   fetchMessages: () => Promise<void>;
-  sendMessage: (targetNode: string, message: string) => Promise<void>;
   setError: (error: string | null) => void;
   clearError: () => void;
 }
@@ -87,22 +86,6 @@ export const useSkeletonStore = create<SkeletonStore>((set, get) => ({
     }
   },
 
-  // Send a message to another node
-  sendMessage: async (targetNode: string, message: string) => {
-    set({ isLoading: true, error: null });
-    try {
-      await api.sendToNode(targetNode, message);
-      set({ isLoading: false });
-      
-      // Refresh messages after sending
-      await get().fetchMessages();
-    } catch (error) {
-      set({
-        error: api.getErrorMessage(error),
-        isLoading: false,
-      });
-    }
-  },
 
   // Error management
   setError: (error) => set({ error }),

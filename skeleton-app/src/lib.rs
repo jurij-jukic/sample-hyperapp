@@ -15,10 +15,6 @@ use hyperprocess_macro::*;
 use hyperware_process_lib::{
     our,                    // Gets current node/process identity
     homepage::add_to_homepage,  // Adds app icon to Hyperware homepage
-    // Uncomment these imports when using P2P features:
-    // Address,                // For P2P addressing
-    // ProcessId,              // Process identifiers
-    // Request,                // For making requests to other processes/nodes
 };
 
 // Standard imports for serialization
@@ -33,9 +29,6 @@ pub struct AppState {
     // Example fields - replace with your app's data
     counter: u32,
     messages: Vec<String>,
-    // For P2P apps, you might store:
-    // my_node_id: Option<String>,
-    // connected_nodes: Vec<String>,
 }
 
 // STEP 2: IMPLEMENT YOUR APP LOGIC
@@ -124,64 +117,8 @@ impl AppState {
         serde_json::to_string(&self.messages).unwrap_or_else(|_| "[]".to_string())
     }
     
-    // REMOTE ENDPOINT EXAMPLE
-    // These are called by other nodes in the P2P network
-    // Use #[remote] instead of #[http]
-    // #[remote]
-    // async fn handle_remote_message(&mut self, message: String) -> Result<String, String> {
-    //     // Store the message
-    //     // Note: In remote handlers, you can't easily get the sender's node ID
-    //     // You would need to include it in the message payload
-    //     self.messages.push(format!("Remote message: {}", message));
-    //     
-    //     Ok("Message received".to_string())
-    // }
-    
-    // P2P COMMUNICATION EXAMPLE
-    // Shows how to send messages to other nodes
-    // #[http]
-    // async fn send_to_node(&mut self, request_body: String) -> Result<String, String> {
-    //     // Parse request containing target node and message
-    //     #[derive(Deserialize)]
-    //     struct SendRequest {
-    //         target_node: String,
-    //         message: String,
-    //     }
-    //     
-    //     let req: SendRequest = serde_json::from_str(&request_body)
-    //         .map_err(|e| format!("Invalid request: {}", e))?;
-    //     
-    //     // Construct the target address
-    //     // Format: "process-name:package-name:publisher"
-    //     let target_process_id = "skeleton-app:skeleton-app:skeleton.os"
-    //         .parse::<ProcessId>()
-    //         .map_err(|e| format!("Invalid process ID: {}", e))?;
-    //     
-    //     let target_address = Address::new(req.target_node, target_process_id);
-    //     
-    //     // Create request wrapper for remote method
-    //     let request_wrapper = serde_json::json!({
-    //         "HandleRemoteMessage": req.message
-    //     });
-    //     
-    //     // Send the request
-    //     // CRITICAL: Always set expects_response timeout for remote calls
-    //     let result = Request::new()
-    //         .target(target_address)
-    //         .body(serde_json::to_vec(&request_wrapper).unwrap())
-    //         .expects_response(30) // 30 second timeout
-    //         .send_and_await_response(30);
-    //     
-    //     match result {
-    //         Ok(_) => Ok("Message sent successfully".to_string()),
-    //         Err(e) => Err(format!("Failed to send message: {:?}", e))
-    //     }
-    // }
 }
 
-// ICON FOR YOUR APP (base64 encoded PNG, 256x256 recommended)
-// Generate your own icon and encode it, or use an emoji in add_to_homepage
-// const ICON: &str = "";
 
 // WIT TYPE COMPATIBILITY NOTES:
 // The hyperprocess macro generates WebAssembly Interface Types from your code.
@@ -211,10 +148,10 @@ impl AppState {
 // Body format: { "MethodName": parameters }
 
 // 4. P2P PATTERNS
+// - See the P2P patterns guide for implementing P2P features
 // - Use #[remote] for methods other nodes can call
 // - Use Request API for calling other nodes
 // - Always set timeouts for remote calls
-// - Design for eventual consistency
 
 // 5. SYSTEM INTEGRATION
 // Common system processes you might interact with:

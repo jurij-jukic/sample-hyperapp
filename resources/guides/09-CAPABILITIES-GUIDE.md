@@ -118,25 +118,36 @@ let result = call_contract(
 ### 💾 sqlite:distro:sys
 **Purpose**: SQLite database access
 
+**⚠️ IMPORTANT**: SQLite requires BOTH capabilities:
+```json
+"request_capabilities": [
+  "sqlite:distro:sys",  // For database operations
+  "vfs:distro:sys"      // Required! SQLite uses VFS internally
+]
+```
+
 **Operations**:
 ```rust
-use hyperware_process_lib::sqlite::*;
+use hyperware_process_lib::sqlite;
 
-// Create database
-let db = open_db("/app-data/my-app.db")?;
+// Open database
+let db = sqlite::open(our().package_id(), "my_database", Some(5000))?;
 
 // Create tables
-db.execute(
+db.write(
     "CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL
-    )",
-    []
+    )".to_string(),
+    vec![],
+    None
 )?;
 
 // Query data
-let users = db.query("SELECT * FROM users", [])?;
+let users = db.read("SELECT * FROM users".to_string(), vec![])?;
 ```
+
+See the [SQLite API Guide](./10-SQLITE-API-GUIDE.md) for comprehensive usage.
 
 ---
 
@@ -196,6 +207,11 @@ let keys = list_keys("user:*")?;
 
 ### 🌐 net:tcp:sys & net:udp:sys
 **Purpose**: Raw TCP/UDP networking
+
+**Note**: The exact capability format may vary. You might see:
+- `net:tcp:sys` and `net:udp:sys` (specific protocols)
+- `net:distro:sys` (general networking)
+- Verify with your Hyperware version
 
 **Use cases**:
 - Custom protocols

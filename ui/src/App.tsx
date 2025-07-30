@@ -1,5 +1,5 @@
 // Main App component for Skeleton App
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import './App.css';
 import { useSkeletonStore } from './store/skeleton';
 
@@ -15,13 +15,9 @@ function App() {
     initialize,
     fetchStatus,
     incrementCounter,
-    sendMessage,
     clearError,
   } = useSkeletonStore();
 
-  // Local state for P2P form
-  const [targetNode, setTargetNode] = useState('');
-  const [messageText, setMessageText] = useState('');
 
   // Initialize on mount
   useEffect(() => {
@@ -39,18 +35,6 @@ function App() {
     return () => clearInterval(interval);
   }, [isConnected, fetchStatus]);
 
-  // Handle form submission
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!targetNode || !messageText) return;
-    
-    await sendMessage(targetNode, messageText);
-    
-    // Clear form on success
-    if (!error) {
-      setMessageText('');
-    }
-  };
 
   return (
     <div className="app">
@@ -133,45 +117,6 @@ function App() {
             </button>
           </section>
 
-          {/* P2P Communication Section */}
-          <section className="section">
-            <h2 className="section-title">P2P Communication</h2>
-            <p>Send a message to another node running this app:</p>
-            
-            <form className="p2p-form" onSubmit={handleSendMessage}>
-              <div className="form-group">
-                <label htmlFor="target-node">Target Node (e.g., "bob.os")</label>
-                <input
-                  id="target-node"
-                  type="text"
-                  value={targetNode}
-                  onChange={(e) => setTargetNode(e.target.value)}
-                  placeholder="Enter target node address"
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="message">Message</label>
-                <textarea
-                  id="message"
-                  value={messageText}
-                  onChange={(e) => setMessageText(e.target.value)}
-                  placeholder="Enter your message"
-                  rows={3}
-                  required
-                />
-              </div>
-              
-              <button 
-                type="submit" 
-                className="send-button"
-                disabled={isLoading || !targetNode || !messageText}
-              >
-                {isLoading ? <span className="spinner" /> : 'Send Message'}
-              </button>
-            </form>
-          </section>
 
           {/* Instructions */}
           <section className="section">
@@ -181,17 +126,17 @@ function App() {
               <ul>
                 <li>Basic state management with a counter</li>
                 <li>HTTP communication between frontend and backend</li>
-                <li>P2P messaging between nodes</li>
                 <li>Error handling and loading states</li>
+                <li>Persistent state across app restarts</li>
               </ul>
               
               <p>To customize this app:</p>
               <ol>
                 <li>Modify <code>AppState</code> in <code>lib.rs</code></li>
                 <li>Add new HTTP endpoints with <code>#[http]</code></li>
-                <li>Add remote endpoints with <code>#[remote]</code></li>
                 <li>Update the UI components and API calls</li>
                 <li>Build with <code>kit b --hyperapp</code></li>
+                <li>Test with <code>kit s</code></li>
               </ol>
             </div>
           </section>

@@ -26,15 +26,17 @@ async fn connect_to_node(&mut self, request_body: String) -> Result<String, Stri
 ### 2. Process Identity
 ```rust
 // ProcessId format: "process-name:package-name:publisher"
+// Note: publisher must match between communicating nodes
 let process_id = "myapp:myapp:publisher.os"
     .parse::<ProcessId>()
     .map_err(|e| format!("Invalid ProcessId: {}", e))?;
 
 // For your app to talk to itself on other nodes
+// IMPORTANT: All nodes must use the same publisher!
 let my_process_id = format!("{}:{}:{}", 
-    "skeleton-app",      // process name
-    "skeleton-app",      // package name  
-    "skeleton.os"        // publisher
+    "skeleton-app",      // process name (from metadata.json)
+    "skeleton-app",      // package name (from metadata.json)
+    "skeleton.os"        // publisher (must be consistent across nodes)
 ).parse::<ProcessId>()?;
 ```
 

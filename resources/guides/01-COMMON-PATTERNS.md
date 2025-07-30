@@ -9,6 +9,7 @@
 6. [Error Handling Patterns](#error-handling-patterns)
 7. [UI State Management](#ui-state-management)
 8. [Authentication & Permissions](#authentication--permissions)
+9. [Timer Patterns](#timer-patterns)
 
 ---
 
@@ -520,9 +521,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
 ## Error Handling Patterns
 
+### Standard Error Pattern (Use Throughout Your App)
+```rust
+// Convert any error to a String for HTTP responses
+.map_err(|e| format!("Operation failed: {:?}", e))?;
+
+// Example usage in endpoints
+#[http]
+async fn create_item(&mut self, request_body: String) -> Result<String, String> {
+    let item: Item = serde_json::from_str(&request_body)
+        .map_err(|e| format!("Invalid request: {}", e))?;
+    
+    self.save_item(item)
+        .map_err(|e| format!("Failed to save item: {:?}", e))?;
+    
+    Ok("Created".to_string())
+}
+```
+
 ### Comprehensive Error Handling
 ```rust
-// Define error types
+// Define error types for complex apps
 #[derive(Serialize, Deserialize)]
 pub enum AppError {
     NotFound { resource: String },
@@ -747,6 +766,193 @@ async fn admin_action(&mut self, request_body: String) -> Result<String, String>
 }
 ```
 
+---
+
+## Timer Patterns
+
+### Basic One-Time Timer
+
+```rust
+use hyperware_process_lib::timer;
+
+// Set a timer for 5 seconds
+#[http]
+async fn set_reminder(&mut self, _request_body: String) -> Result<String, String> {
+    // Timer fires once after 5000ms (5 seconds)
+    timer::set_timer(5000, None);
+    Ok("Reminder set for 5 seconds".to_string())
+}
+
+// Handle timer in your message handler (not shown in skeleton)
+// In a full app, you'd handle Message::Timer in your main loop
+```
+
+### Recurring Timer Pattern
+
+```rust
+#[derive(Default, Serialize, Deserialize)]
+pub struct AppState {
+    sync_interval_ms: u64,
+    sync_enabled: bool,
+    last_sync: Option<String>,
+}
+
+// Start recurring sync
+#[http]
+async fn start_auto_sync(&mut self, request_body: String) -> Result<String, String> {
+    let interval_ms: u64 = serde_json::from_str(&request_body)
+        .unwrap_or(30000); // Default 30 seconds
+    
+    self.sync_interval_ms = interval_ms;
+    self.sync_enabled = true;
+    
+    // Set initial timer
+    timer::set_timer(interval_ms, Some(json!({ "action": "sync" })));
+    
+    Ok(format!("Auto-sync enabled every {}ms", interval_ms))
+}
+
+// In your timer handler (conceptual - depends on app structure)
+async fn handle_timer(&mut self, context: Option<serde_json::Value>) {
+    if let Some(ctx) = context {
+        if let Some(action) = ctx.get("action").and_then(|a| a.as_str()) {
+            match action {
+                "sync" => {
+                    // Perform sync
+                    self.perform_sync().await;
+                    
+                    // Schedule next sync if still enabled
+                    if self.sync_enabled {
+                        timer::set_timer(
+                            self.sync_interval_ms, 
+                            Some(json!({ "action": "sync" }))
+                        );
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+// Stop recurring timer
+#[http]
+async fn stop_auto_sync(&mut self, _request_body: String) -> Result<String, String> {
+    self.sync_enabled = false;
+    Ok("Auto-sync disabled".to_string())
+}
+```
+
+### Delayed Operation Pattern
+
+```rust
+// Schedule an operation for later
+#[http]
+async fn schedule_task(&mut self, request_body: String) -> Result<String, String> {
+    #[derive(Deserialize)]
+    struct ScheduleRequest {
+        task_id: String,
+        delay_seconds: u64,
+        task_data: serde_json::Value,
+    }
+    
+    let req: ScheduleRequest = serde_json::from_str(&request_body)?;
+    
+    // Store task info for later
+    self.pending_tasks.insert(req.task_id.clone(), req.task_data.clone());
+    
+    // Schedule execution
+    timer::set_timer(
+        req.delay_seconds * 1000,
+        Some(json!({
+            "action": "execute_task",
+            "task_id": req.task_id
+        }))
+    );
+    
+    Ok(format!("Task {} scheduled for {} seconds", req.task_id, req.delay_seconds))
+}
+```
+
+### Timeout Pattern
+
+```rust
+// Operation with timeout
+async fn operation_with_timeout(&mut self) -> Result<String, String> {
+    // Start operation
+    self.operation_in_progress = true;
+    self.operation_id = uuid::Uuid::new_v4().to_string();
+    
+    // Set timeout
+    timer::set_timer(
+        10000, // 10 second timeout
+        Some(json!({
+            "action": "timeout",
+            "operation_id": self.operation_id
+        }))
+    );
+    
+    // Start async operation...
+    Ok("Operation started".to_string())
+}
+
+// In timer handler
+async fn handle_timeout(&mut self, operation_id: String) {
+    if self.operation_in_progress && self.operation_id == operation_id {
+        // Operation timed out
+        self.operation_in_progress = false;
+        println!("Operation {} timed out", operation_id);
+        // Clean up...
+    }
+}
+```
+
+### Debounce Pattern
+
+```rust
+// Debounce rapid calls
+#[http]
+async fn search(&mut self, request_body: String) -> Result<String, String> {
+    let query: String = serde_json::from_str(&request_body)?;
+    
+    // Cancel previous timer if exists
+    self.search_timer_active = false;
+    
+    // Set new timer
+    self.search_timer_active = true;
+    let timer_id = uuid::Uuid::new_v4().to_string();
+    self.current_timer_id = timer_id.clone();
+    
+    timer::set_timer(
+        300, // 300ms debounce
+        Some(json!({
+            "action": "execute_search",
+            "query": query,
+            "timer_id": timer_id
+        }))
+    );
+    
+    Ok("Search scheduled".to_string())
+}
+
+// Execute only if timer wasn't cancelled
+async fn handle_search(&mut self, query: String, timer_id: String) {
+    if self.search_timer_active && self.current_timer_id == timer_id {
+        // Perform actual search
+        self.perform_search(query).await;
+        self.search_timer_active = false;
+    }
+}
+```
+
+### Important Notes on Timers
+
+1. **Capability Required**: Add `"timer:distro:sys"` to your manifest.json
+2. **No Timer Cancellation**: Once set, timers fire - use flags to ignore if needed
+3. **Context Data**: Use the optional context parameter to pass data to timer handler
+4. **Persistence**: Timers don't persist across app restarts
+5. **Accuracy**: Timers are approximate, don't rely on millisecond precision
+
 ## Best Practices Summary
 
 1. **Always validate input** - Use proper error types
@@ -759,3 +965,4 @@ async fn admin_action(&mut self, request_body: String) -> Result<String, String>
 8. **Keep state minimal** - Only store what you need
 9. **Document patterns** - Help future developers
 10. **Use transactions** - Group related state changes
+11. **Timer cleanup** - Track active timers to handle cancellation

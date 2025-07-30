@@ -8,21 +8,15 @@ export interface StatusResponse {
   node: string;
 }
 
-// API Request types
-export interface SendMessageRequest {
-  target_node: string;
-  message: string;
-}
 
 // Method names must match the Rust function names exactly
 export type ApiMethods = 
   | 'GetStatus'
   | 'IncrementCounter' 
-  | 'GetMessages'
-  | 'SendToNode';
+  | 'GetMessages';
 
 // Type-safe API call wrapper
-export interface ApiCall<T = any> {
+export interface ApiCall<T> {
   [method: string]: T;
 }
 

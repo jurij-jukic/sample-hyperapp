@@ -1,6 +1,6 @@
 {
   "name": "SkeletonApp",
-  "description": "A minimal skeleton app for the Hyperware platform using the Hyperapp framework",
+  "description": "A minimal skeleton app for the Hyperware platform using the Hyperapp framework - demonstrates basic state management and HTTP endpoints",
   "image": "",
   "properties": {
     "package_name": "skeleton-app",

@@ -1,6 +1,6 @@
 # Hyperware Skeleton App
 
-A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework. This skeleton provides a starting point for building peer-to-peer applications with a React/TypeScript frontend and Rust backend.
+A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework. This skeleton provides a starting point for building Hyperware applications with a React/TypeScript frontend and Rust backend.
 
 ## Features
 
@@ -8,10 +8,10 @@ A minimal, well-commented skeleton application for the Hyperware platform using 
 - ✅ Well-commented code explaining key concepts
 - ✅ Basic state management with counter example
 - ✅ HTTP endpoints demonstration
-- ✅ P2P messaging between nodes
 - ✅ React/TypeScript UI with Zustand state management
 - ✅ Error handling and loading states
 - ✅ Automatic WIT generation via hyperprocess macro
+- ✅ Persistent state across app restarts
 
 ## Quick Start
 
@@ -89,17 +89,12 @@ MUST be included in index.html:
 <script src="/our.js"></script>
 ```
 
-### 3. P2P Communication
+### 3. State Persistence
 
-For node-to-node communication:
-```rust
-let target_address = Address::new(node_name, process_id);
-let result = Request::new()
-    .target(target_address)
-    .body(request_body)
-    .expects_response(30)  // Always set timeout
-    .send_and_await_response(30);
-```
+Your app's state is automatically persisted based on the `save_config` option:
+- `EveryMessage`: Save after each message (safest)
+- `OnInterval(n)`: Save every n seconds
+- `Never`: No automatic saves
 
 ## Customization Guide
 
@@ -124,14 +119,15 @@ async fn my_method(&mut self, request_body: String) -> Result<String, String> {
 }
 ```
 
-### 3. Add Remote Endpoints
+### 3. Add Capabilities
 
-For P2P features:
-```rust
-#[remote]
-async fn handle_remote_call(&mut self, data: String) -> Result<String, String> {
-    // Handle calls from other nodes
-}
+Add system permissions in `manifest.json`:
+```json
+"request_capabilities": [
+    "homepage:homepage:sys",
+    "http-server:distro:sys",
+    "vfs:distro:sys"  // Add as needed
+]
 ```
 
 ### 4. Update Frontend
@@ -161,26 +157,22 @@ async fn handle_remote_call(&mut self, data: String) -> Result<String, String> {
 - Don't add `hyperware_process_lib` to Cargo.toml
 - Use imports from `hyperprocess_macro`
 
-## Testing P2P Features
+## Testing Your App
 
-1. Run two Hyperware nodes:
+1. Run a Hyperware node:
    ```bash
-   # Terminal 1
-   kit s --fake-node alice.os
-   
-   # Terminal 2  
-   kit s --fake-node bob.os
+   kit s
    ```
 
-2. Install the app on both nodes
-3. Use the P2P messaging feature to send messages between nodes
+2. Your app will be automatically installed and available at `http://localhost:8080`
+3. Check the Hyperware homepage for your app icon
 
 ## Next Steps
 
 1. **Study the Code**: Read through the well-commented `lib.rs` file
 2. **Experiment**: Try modifying the counter logic or adding new endpoints
 3. **Build Features**: Add your own functionality following the patterns
-4. **Test P2P**: Run multiple nodes and test node-to-node communication
+4. **Add Capabilities**: Request system permissions as needed for your features
 
 ## Resources
 

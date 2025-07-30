@@ -46,11 +46,11 @@ feature `edition2024` is required
 base64ct = "=1.6.0"  # Pin to avoid edition2024 requirement
 ```
 
-### ❌ Error: "Failed to deserialize HTTP request into HPMRequest enum"
+### ❌ Error: "Failed to deserialize HTTP request"
 
 **Symptoms:**
 ```
-Failed to deserialize HTTP request into HPMRequest enum: invalid type: unit variant, expected struct variant
+Failed to deserialize HTTP request: invalid type: unit variant, expected struct variant
 ```
 
 **Root Cause:** HTTP endpoint missing required `_request_body` parameter

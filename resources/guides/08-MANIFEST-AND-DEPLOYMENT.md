@@ -55,18 +55,32 @@ This file tells Hyperware:
 kit b --hyperapp
 ```
 
+### Build Process Flow
+```
+metadata.json → kit b --hyperapp → pkg/manifest.json
+     ↓                                    ↓
+Package name ←────── must match ─────→ process_name
+```
+
 The build process:
-1. Compiles your Rust code to WASM
-2. Builds the UI with Vite
-3. **Generates `pkg/manifest.json`** based on metadata.json
-4. Creates the complete package
+1. Reads `metadata.json` for package name and publisher
+2. Compiles your Rust code to WASM
+3. Builds the UI with Vite
+4. **Generates `pkg/manifest.json`** using metadata + defaults
+5. Creates the complete package in `pkg/` directory
 
 ### If manifest.json is Missing
 
 If you see the "failed to open file" error:
 1. Check if `pkg/` directory exists
 2. Run `kit b --hyperapp` to build properly
-3. Verify `metadata.json` exists and is valid
+3. Verify `metadata.json` exists and is valid:
+   ```json
+   {
+     "package": "your-app-name",
+     "publisher": "your-publisher"
+   }
+   ```
 
 ## Customizing manifest.json
 
@@ -205,6 +219,18 @@ Missing homepage capability:
 4. **Modify** if needed (usually not necessary)
 5. **Install**: `kit s` to start and install
 6. **Test** with multiple nodes for P2P features
+
+## Skeleton App Configuration
+
+The skeleton app includes a minimal `manifest.json` with only essential capabilities:
+- **homepage:homepage:sys** - To appear on the Hyperware homepage
+- **http-server:distro:sys** - To serve UI and handle API requests
+
+When extending the skeleton, you'll likely need to add capabilities like:
+- **vfs:distro:sys** - For file storage
+- **sqlite:distro:sys** - For database (also requires vfs!)
+- **http-client:distro:sys** - For external API calls
+- See the [Capabilities Guide](./09-CAPABILITIES-GUIDE.md) for the complete list
 
 ## Next Steps
 

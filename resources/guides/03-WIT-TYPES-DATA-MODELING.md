@@ -526,3 +526,9 @@ async fn safe_operation(&mut self, request_body: String) -> ApiResult<String> {
 3. **Test incrementally** - Build often to catch type issues early
 4. **Keep it simple** - Complex types cause problems
 5. **Document patterns** - Future you will thank you
+
+## See Also
+
+- [Troubleshooting Guide](./02-TROUBLESHOOTING.md#error-found-types-used-that-are-neither-wit-built-ins-nor-defined-locally) - For WIT type errors
+- [Common Patterns](./01-COMMON-PATTERNS.md) - For implementation examples
+- [Complete Examples](./07-COMPLETE-EXAMPLES.md) - For real-world usage
