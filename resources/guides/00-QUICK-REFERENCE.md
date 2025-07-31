@@ -2,18 +2,22 @@
 
 ## Critical Rules - MUST FOLLOW
 
-### 1. HTTP Endpoints MUST Have `_request_body` Parameter
+### 1. HTTP Endpoints Parameter Handling
 ```rust
-// ❌ WRONG - Will cause "Failed to deserialize" error
-#[http]
-async fn get_data(&self) -> Vec<Data> { }
+// ✅ Modern approach - Direct type deserialization (requires generated caller-utils)
+#[http(method = "POST")]
+async fn create_item(&mut self, request: CreateItemReq) -> Result<ItemInfo, String> { }
 
-// ✅ CORRECT - Even if unused, parameter is required
+// ✅ Legacy approach - Manual JSON parsing (still valid)
 #[http]
-async fn get_data(&self, _request_body: String) -> Vec<Data> { }
+async fn create_item(&mut self, request_body: String) -> Result<String, String> {
+    let req: CreateItemReq = serde_json::from_str(&request_body)?;
+}
 ```
 
-For detailed explanation and more examples, see [Troubleshooting Guide - Section 1](./02-TROUBLESHOOTING.md#error-failed-to-deserialize-http-request-into-hpmrequest-enum)
+**Note**: The modern approach requires generated TypeScript caller-utils that wrap requests in method-named objects.
+
+For detailed explanation and more examples, see [Troubleshooting Guide - Section 1](./02-TROUBLESHOOTING.md#error-failed-to-deserialize-http-request)
 
 ### 2. Frontend MUST Include `/our.js` Script
 ```html
@@ -24,14 +28,20 @@ For detailed explanation and more examples, see [Troubleshooting Guide - Section
 </head>
 ```
 
-### 3. Multi-Parameter Calls Use TUPLES
+### 3. API Call Formats
 ```typescript
-// ❌ WRONG - Object format
-{ "MethodName": { param1: "a", param2: "b" } }
+// ✅ Modern approach (with generated caller-utils)
+// Single parameter - wrapped in method-named object
+{ "CreateItem": { name: "foo", value: 42 } }
 
-// ✅ CORRECT - Tuple/array format
-{ "MethodName": ["a", "b"] }
+// ✅ Legacy approach (manual API calls)
+// Single string parameter
+{ "CreateItem": "raw string value" }
+// Multiple parameters as array (rare)
+{ "UpdateItem": ["id123", "new value"] }
 ```
+
+**Note**: Most modern apps use generated caller-utils that handle the wrapping automatically.
 
 ### 4. Remote Calls MUST Set Timeout
 ```rust
@@ -128,6 +138,22 @@ async fn handle_remote(&mut self, data: String) -> Result<String, String> {
 }
 ```
 
+### WebSocket Configuration (in hyperprocess macro)
+```rust
+#[hyperprocess(
+    endpoints = vec![
+        Binding::Http {
+            path: "/api",
+            config: HttpBindingConfig::default(),
+        },
+        Binding::Ws {
+            path: "/ws",
+            config: WsBindingConfig::default().authenticated(false),
+        },
+    ],
+)]
+```
+
 ### Frontend API Call
 ```typescript
 // utils/api.ts
@@ -160,14 +186,32 @@ let result = Request::new()
     .send_and_await_response(30)?;
 ```
 
+### WebSocket Handler
+```rust
+#[ws]
+fn websocket(&mut self, channel_id: u32, message_type: WsMessageType, blob: LazyLoadBlob) {
+    match message_type {
+        WsMessageType::Text => {
+            let message = String::from_utf8(blob.bytes).unwrap();
+            // Handle text message
+        }
+        WsMessageType::Close => {
+            // Handle disconnect
+        }
+        _ => {}
+    }
+}
+```
+
 ## Import Requirements
 
 ### Standard Rust Imports (Use This Pattern)
 ```rust
 use hyperprocess_macro::*;
 use hyperware_process_lib::{
-    our, Address, ProcessId, Request,
-    homepage::add_to_homepage
+    our, Address, ProcessId, Request, LazyLoadBlob,
+    homepage::add_to_homepage,
+    http::server::{send_ws_push, WsMessageType}, // For WebSocket
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json; // For json! macro

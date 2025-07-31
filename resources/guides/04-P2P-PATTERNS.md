@@ -8,6 +8,30 @@ In Hyperware, every user runs their own node. P2P communication allows nodes to:
 - Build collaborative applications
 - Maintain distributed state
 
+## Endpoint Attributes
+
+Understanding the different endpoint types:
+
+- **`#[http]`** - HTTP endpoints accessible via frontend API calls
+- **`#[remote]`** - Endpoints callable by other nodes via P2P
+- **`#[local]`** - Internal endpoints callable within the same node
+- **`#[local] #[remote]`** - Endpoints callable both locally and remotely
+
+```rust
+// HTTP only - frontend calls
+#[http]
+async fn get_data(&self, _request_body: String) -> Vec<Item> { }
+
+// Remote only - other nodes call this
+#[remote]
+async fn sync_data(&mut self, data: String) -> Result<String, String> { }
+
+// Both local and remote - flexible access
+#[local]
+#[remote]
+async fn process_request(&mut self, req: Request) -> Result<Response, String> { }
+```
+
 ## Essential Components
 
 ### 1. Node Identity
@@ -47,6 +71,40 @@ let target_address = Address::new(
     "bob.os".to_string(),     // target node
     process_id                 // target process
 );
+```
+
+### 4. Request Patterns
+
+Two ways to make P2P requests:
+
+**Traditional Pattern (hyperware_process_lib::Request):**
+```rust
+let response = Request::new()
+    .target(target_address)
+    .body(serde_json::to_vec(&data).unwrap())
+    .expects_response(30)
+    .send_and_await_response(30)?;
+```
+
+**Modern Pattern (hyperware_app_common::send):**
+```rust
+use hyperware_app_common::send;
+
+// Type-safe request with automatic deserialization
+let request = Request::to(&target_address)
+    .body(serde_json::to_vec(&data).unwrap());
+
+match send::<Result<ResponseType, String>>(request).await {
+    Ok(Ok(response)) => {
+        // Use response directly - already deserialized
+    }
+    Ok(Err(e)) => {
+        // Remote returned an error
+    }
+    Err(e) => {
+        // Network/communication error
+    }
+}
 ```
 
 ## P2P Communication Patterns
@@ -336,7 +394,94 @@ async fn apply_operation(&mut self, op_json: String) -> Result<String, String> {
 }
 ```
 
-### Pattern 5: Node Discovery & Presence
+### Pattern 5: Node Authentication & Handshake
+
+**Use Case:** Authenticate nodes before allowing access to resources
+
+```rust
+use hyperware_app_common::{send, source};
+
+// Authentication request/response types
+#[derive(Serialize, Deserialize)]
+pub struct NodeHandshakeReq {
+    pub resource_id: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct NodeHandshakeResp {
+    pub auth_token: String,
+}
+
+// Client initiates handshake
+#[http(method = "POST")]
+async fn start_handshake(&mut self, url: String) -> Result<String, String> {
+    // Extract node from URL (e.g., "https://bob.os/app/resource/123")
+    let parts: Vec<&str> = url.split('/').collect();
+    let host_node = parts.get(2)
+        .ok_or("Invalid URL format")?
+        .split(':').next()
+        .ok_or("No host found")?;
+    
+    // Extract resource ID
+    let resource_id = parts.last()
+        .ok_or("No resource ID in URL")?
+        .to_string();
+    
+    // Build target address
+    let target = Address::new(host_node, ("app", "app", "publisher.os"));
+    
+    // Create handshake request
+    let handshake_req = NodeHandshakeReq { resource_id };
+    
+    // Use typed send from hyperware_app_common
+    let body = json!({"NodeHandshake": handshake_req});
+    let request = Request::to(&target).body(serde_json::to_vec(&body).unwrap());
+    
+    match send::<Result<NodeHandshakeResp, String>>(request).await {
+        Ok(Ok(resp)) => {
+            // Store token and redirect with auth
+            self.auth_tokens.insert(host_node.to_string(), resp.auth_token.clone());
+            Ok(format!("{}?auth={}", url, resp.auth_token))
+        }
+        Ok(Err(e)) => Err(format!("Handshake failed: {}", e)),
+        Err(e) => Err(format!("Request failed: {:?}", e)),
+    }
+}
+
+// Server handles handshake - both local and remote calls
+#[local]
+#[remote]
+async fn node_handshake(&mut self, req: NodeHandshakeReq) -> Result<NodeHandshakeResp, String> {
+    // Verify resource exists
+    if !self.resources.contains_key(&req.resource_id) {
+        return Err("Resource not found".to_string());
+    }
+    
+    // Get caller identity using source()
+    let caller_node = source().node;
+    
+    // Generate unique auth token
+    let auth_token = generate_auth_token();
+    
+    // Store token -> node mapping
+    self.node_auth.insert(auth_token.clone(), NodeAuth {
+        node_id: caller_node.clone(),
+        resource_id: req.resource_id,
+        granted_at: chrono::Utc::now().to_rfc3339(),
+    });
+    
+    Ok(NodeHandshakeResp { auth_token })
+}
+
+// Verify token on subsequent requests
+fn verify_auth(&self, token: &str) -> Result<NodeAuth, String> {
+    self.node_auth.get(token)
+        .cloned()
+        .ok_or_else(|| "Invalid auth token".to_string())
+}
+```
+
+### Pattern 6: Node Discovery & Presence
 
 **Use Case:** Find and track active nodes
 
@@ -407,7 +552,7 @@ async fn register_node(&mut self, info_json: String) -> Result<String, String> {
 }
 ```
 
-### Pattern 6: Distributed Transactions
+### Pattern 7: Distributed Transactions
 
 **Use Case:** Coordinate actions across multiple nodes
 
@@ -524,6 +669,7 @@ async fn abort(&mut self, tx_id: String) -> Result<String, String> {
 
 ### Retry with Exponential Backoff
 ```rust
+// Note: This pattern requires the "timer:distro:sys" capability!
 async fn reliable_remote_call(
     target: Address,
     method: &str,
@@ -563,6 +709,7 @@ async fn reliable_remote_call(
 
 ### Circuit Breaker Pattern
 ```rust
+// Note: HashMap is used here for internal state only - not exposed via WIT
 #[derive(Default)]
 pub struct CircuitBreaker {
     failures: HashMap<String, u32>,
@@ -699,6 +846,228 @@ println!("[P2P] Response: {:?}", response);
 println!("[P2P] State after sync: {:?}", self.state);
 ```
 
+## Real-World P2P Patterns from samchat
+
+### Pattern 8: Group Membership Notifications
+
+**Use Case:** Notify all members when a group is created or modified
+
+```rust
+// Create group and notify all members
+#[http]
+async fn create_group(&mut self, group_name: String, initial_members: Vec<String>) -> Result<String, String> {
+    let creator = self.my_node_id.clone()
+        .ok_or_else(|| "Creator node ID not initialized".to_string())?;
+    
+    // Ensure creator is included
+    let mut participants = initial_members;
+    if !participants.contains(&creator) {
+        participants.push(creator.clone());
+    }
+    
+    let group_id = format!("group_{}", Uuid::new_v4());
+    
+    // Create group locally
+    let conversation = Conversation {
+        id: group_id.clone(),
+        participants: participants.clone(),
+        is_group: true,
+        group_name: Some(group_name.clone()),
+        created_by: Some(creator.clone()),
+        // ...
+    };
+    self.conversations.insert(group_id.clone(), conversation);
+    
+    // Notify all other members
+    let publisher = "hpn-testing-beta.os"; // Consistent across all nodes!
+    let target_process_id = format!("samchat:samchat:{}", publisher)
+        .parse::<ProcessId>()?;
+    
+    for participant in &participants {
+        if participant != &creator {
+            let target_address = Address::new(participant.clone(), target_process_id.clone());
+            let notification = GroupJoinNotification {
+                group_id: group_id.clone(),
+                group_name: group_name.clone(),
+                participants: participants.clone(),
+                created_by: creator.clone(),
+            };
+            
+            let request_wrapper = json!({ "HandleGroupJoin": notification });
+            
+            // Fire-and-forget but still set expects_response for reliability
+            let _ = Request::new()
+                .target(target_address)
+                .body(serde_json::to_vec(&request_wrapper).unwrap())
+                .expects_response(30)
+                .send();
+        }
+    }
+    
+    Ok(group_id)
+}
+
+// Handle notification on receiving nodes
+#[remote]
+async fn handle_group_join(&mut self, notification: GroupJoinNotification) -> Result<bool, String> {
+    // Create the group conversation locally
+    let conversation = Conversation {
+        id: notification.group_id.clone(),
+        participants: notification.participants,
+        is_group: true,
+        group_name: Some(notification.group_name),
+        created_by: Some(notification.created_by),
+        // ...
+    };
+    
+    self.conversations.insert(notification.group_id, conversation);
+    Ok(true)
+}
+```
+
+### Pattern 9: Remote Data Retrieval with Local Caching
+
+**Use Case:** Fetch files or data from remote nodes with fallback
+
+```rust
+// Try local first, then remote
+#[http]
+async fn download_file(&mut self, file_id: String, sender_node: String) -> Result<Vec<u8>, String> {
+    // Try local VFS first
+    let file_path = format!("/samchat:hpn-testing-beta.os/files/{}", file_id);
+    let vfs_address = Address::new(our().node.clone(), "vfs:distro:sys".parse::<ProcessId>()?);
+    
+    let local_result = Request::new()
+        .target(vfs_address.clone())
+        .body(json!({ "path": file_path, "action": "Read" }))
+        .expects_response(5)
+        .send_and_await_response(5);
+    
+    if let Ok(response) = local_result {
+        if let Some(blob) = response.blob() {
+            return Ok(blob.bytes);
+        }
+    }
+    
+    // Not found locally, fetch from remote
+    if sender_node != our().node {
+        let target = Address::new(sender_node, 
+            "samchat:samchat:hpn-testing-beta.os".parse::<ProcessId>()?);
+        
+        let remote_result = Request::new()
+            .target(target)
+            .body(json!({ "GetRemoteFile": file_id }))
+            .expects_response(30)
+            .send_and_await_response(30)?;
+        
+        // Parse nested Result from remote
+        let response_json: serde_json::Value = 
+            serde_json::from_slice(&remote_result.body())?;
+        
+        if let Some(file_data) = response_json.get("Ok") {
+            let bytes: Vec<u8> = serde_json::from_value(file_data.clone())?;
+            
+            // Cache locally for future use
+            let _ = Request::new()
+                .target(vfs_address)
+                .body(json!({ "path": file_path, "action": "Write" }))
+                .blob(LazyLoadBlob::new(Some("file"), bytes.clone()))
+                .expects_response(5)
+                .send_and_await_response(5);
+            
+            return Ok(bytes);
+        }
+    }
+    
+    Err("File not found".to_string())
+}
+```
+
+### Pattern 10: Message Distribution to Multiple Recipients
+
+**Use Case:** Send messages to group members without blocking
+
+```rust
+// Distribute message to all group members
+async fn send_group_message(&mut self, group_id: String, content: String) -> Result<bool, String> {
+    let sender = self.my_node_id.clone()
+        .ok_or_else(|| "Node ID not initialized".to_string())?;
+    
+    let conversation = self.conversations.get(&group_id)
+        .ok_or_else(|| "Group not found".to_string())?;
+    
+    // Get all recipients except sender
+    let recipients: Vec<String> = conversation.participants.iter()
+        .filter(|p| *p != &sender)
+        .cloned()
+        .collect();
+    
+    let message = ChatMessage {
+        id: Uuid::new_v4().to_string(),
+        conversation_id: group_id,
+        sender,
+        recipients: Some(recipients.clone()),
+        content,
+        timestamp: Utc::now().to_rfc3339(),
+        // ...
+    };
+    
+    // Save locally first
+    self.conversations.get_mut(&group_id).unwrap()
+        .messages.push(message.clone());
+    
+    // Distribute to all recipients
+    let target_process_id = "samchat:samchat:hpn-testing-beta.os"
+        .parse::<ProcessId>()?;
+    
+    for recipient in recipients {
+        let target = Address::new(recipient, target_process_id.clone());
+        
+        // Fire-and-forget pattern but WITH expects_response
+        let _ = Request::new()
+            .target(target)
+            .body(json!({ "ReceiveMessage": message.clone() }))
+            .expects_response(30)  // Still set timeout!
+            .send(); // Don't await response
+    }
+    
+    Ok(true)
+}
+```
+
+### Key Patterns from samchat:
+
+1. **Consistent Publisher**: Always use the same publisher across all nodes
+   ```rust
+   let publisher = "hpn-testing-beta.os"; // Same for ALL nodes!
+   let process_id = format!("samchat:samchat:{}", publisher);
+   ```
+
+2. **Fire-and-Forget WITH Timeout**: Even when not awaiting responses, set expects_response
+   ```rust
+   Request::new()
+       .expects_response(30)  // Important for reliability
+       .send();  // Not awaiting
+   ```
+
+3. **Node ID in State**: Store your node ID at initialization
+   ```rust
+   #[init]
+   async fn initialize(&mut self) {
+       self.my_node_id = Some(our().node.clone());
+   }
+   ```
+
+4. **Optional Fields for Flexibility**: Use Option<T> for fields that vary by message type
+   ```rust
+   pub struct ChatMessage {
+       recipient: Option<String>,      // Direct messages
+       recipients: Option<Vec<String>>, // Group messages
+       file_info: Option<FileInfo>,     // File attachments
+       reply_to: Option<MessageReplyInfo>, // Replies
+   }
+   ```
+
 ## Remember
 
 1. **No central authority** - Design for peer equality
@@ -706,3 +1075,5 @@ println!("[P2P] State after sync: {:?}", self.state);
 3. **Plan for conflicts** - Concurrent updates will happen
 4. **Test with multiple nodes** - Single node testing misses P2P issues
 5. **Document protocols** - Other developers need to understand your P2P design
+6. **Consistent naming** - Use the same publisher/process names across all nodes
+7. **Always set timeouts** - Even for fire-and-forget patterns

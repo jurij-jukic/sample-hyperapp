@@ -43,14 +43,7 @@ This file contains ideas for example applications that could be built using the 
   - File attachments
 - **Concepts**: Complex state, multiple remote endpoints, presence detection
 
-### 5. **Decentralized Polling App**
-- **Purpose**: Demonstrate consensus and voting mechanisms
-- **Features**:
-  - Create polls
-  - Vote on polls
-  - See results across all nodes
-  - Time-limited polls
-- **Concepts**: Distributed state, aggregation, timer API
+### 5. *removed because it was stupid*
 
 ### 6. **Collaborative Whiteboard**
 - **Purpose**: Real-time collaborative drawing

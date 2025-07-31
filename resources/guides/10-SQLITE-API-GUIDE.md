@@ -23,7 +23,7 @@ SQLite requires **TWO** capabilities in your manifest.json:
 
 ```json
 {
-  "requested_capabilities": [
+  "request_capabilities": [
     "sqlite:distro:sys",  // For database operations
     "vfs:distro:sys"      // Required by SQLite for file storage
   ]

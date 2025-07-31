@@ -53,30 +53,32 @@ base64ct = "=1.6.0"  # Pin to avoid edition2024 requirement
 Failed to deserialize HTTP request: invalid type: unit variant, expected struct variant
 ```
 
-**Root Cause:** HTTP endpoint missing required `_request_body` parameter
+**Root Cause:** HTTP endpoint parameter mismatch with caller-utils expectations
 
 **Solutions:**
 
 ```rust
-// ❌ WRONG - This causes the error
-#[http]
-async fn get_status(&self) -> StatusResponse {
-    StatusResponse { ... }
+// ✅ Modern approach - Direct type deserialization (with generated caller-utils)
+#[http(method = "POST")]
+async fn create_item(&mut self, request: CreateItemReq) -> Result<ItemInfo, String> {
+    // Process request directly
 }
 
-// ✅ FIX 1: Add _request_body parameter
-#[http]
-async fn get_status(&self, _request_body: String) -> StatusResponse {
-    StatusResponse { ... }
-}
-
-// ✅ FIX 2: For endpoints that need data
+// ✅ Legacy approach - Manual JSON parsing
 #[http]
 async fn create_item(&mut self, request_body: String) -> Result<String, String> {
     let req: CreateRequest = serde_json::from_str(&request_body)?;
     // Process request...
 }
+
+// ❌ OLD GUIDANCE (may not work with newer versions)
+#[http]
+async fn get_status(&self, _request_body: String) -> StatusResponse {
+    StatusResponse { ... }
+}
 ```
+
+**Note**: The modern approach requires TypeScript caller-utils that wrap requests properly.
 
 ### ❌ Error: "hyperware_process_lib is ambiguous"
 
@@ -416,6 +418,108 @@ let response: String = serde_json::from_slice(&response.body())?;
 let data: ComplexType = serde_json::from_str(&response)?;
 ```
 
+### ❌ Error: ProcessId parse errors in P2P apps
+
+**Symptoms:**
+```
+Failed to parse ProcessId: InvalidFormat
+```
+
+**Common P2P Pattern:**
+```rust
+// ❌ WRONG - Hardcoded publisher assumption
+let pid = "samchat:samchat:publisher.os".parse::<ProcessId>()?;
+
+// ✅ CORRECT - Use consistent publisher across nodes
+let publisher = "hpn-testing-beta.os"; // Or get from config
+let target_process_id_str = format!("samchat:samchat:{}", publisher);
+let target_process_id = target_process_id_str.parse::<ProcessId>()
+    .map_err(|e| format!("Failed to parse ProcessId: {}", e))?;
+```
+
+### ❌ Error: Node ID not initialized
+
+**Symptoms:**
+```
+Sender node ID not initialized
+```
+
+**Root Cause:** Trying to use node ID before init
+
+**Solution:**
+```rust
+// In state
+pub struct AppState {
+    my_node_id: Option<String>,
+}
+
+// In init
+#[init]
+async fn initialize(&mut self) {
+    self.my_node_id = Some(our().node.clone());
+}
+
+// In handlers
+let sender = self.my_node_id.clone()
+    .ok_or_else(|| "Node ID not initialized".to_string())?;
+```
+
+### ❌ Error: Group/conversation management issues
+
+**Common P2P Chat Errors:**
+```rust
+// Group not found
+let conversation = self.conversations.get(&group_id)
+    .ok_or_else(|| "Group conversation not found".to_string())?;
+
+// Not a group conversation
+if !conversation.is_group {
+    return Err("Not a group conversation".to_string());
+}
+
+// Member already exists
+if conversation.participants.contains(&new_member) {
+    return Err("Member already in group".to_string());
+}
+```
+
+### ❌ Error: Remote file/data fetch failures
+
+**Complex P2P data retrieval pattern:**
+```rust
+// Try local first, then remote
+match local_result {
+    Ok(response) => {
+        if let Some(blob) = response.blob() {
+            return Ok(blob.bytes);
+        }
+    },
+    Err(_) => {
+        // Fetch from remote node
+        let remote_result = Request::new()
+            .target(remote_address)
+            .body(request_body)
+            .expects_response(30)
+            .send_and_await_response(30)?;
+            
+        match remote_result {
+            Ok(response) => {
+                // Parse nested Result
+                let response_json: serde_json::Value = 
+                    serde_json::from_slice(&response.body())?;
+                
+                if let Some(data) = response_json.get("Ok") {
+                    // Handle success
+                } else if let Some(err) = response_json.get("Err") {
+                    return Err(format!("Remote error: {}", err));
+                }
+            },
+            Err(e) => return Err(format!("Remote fetch failed: {:?}", e))
+        }
+    }
+}
+```
+
 ---
 
 ## 4. State Management Issues
@@ -624,19 +728,49 @@ cd .. && kit b --hyperapp
 
 ## 6. Common Patterns That Cause Issues
 
-### ❌ Trying to use WebSockets
+### ❌ WebSocket Handler Issues
 ```rust
-// ❌ WebSocket handlers don't work yet
+// ❌ WRONG - Async WebSocket handler
 #[ws]
-async fn handle_ws(&mut self, data: String) {
-    // This won't be recognized
+async fn websocket(&mut self, channel_id: u32, message_type: WsMessageType, blob: LazyLoadBlob) {
+    // WebSocket handlers must NOT be async!
 }
 
-// ✅ Use HTTP polling instead
-#[http]
-async fn poll_updates(&self, _request_body: String) -> Vec<Update> {
-    self.get_updates_since(last_id)
+// ✅ CORRECT - Synchronous handler
+#[ws]
+fn websocket(&mut self, channel_id: u32, message_type: WsMessageType, blob: LazyLoadBlob) {
+    match message_type {
+        WsMessageType::Text => {
+            // Handle text message
+        }
+        WsMessageType::Close => {
+            // Handle disconnect
+        }
+        _ => {}
+    }
 }
+```
+
+**Common WebSocket Issues:**
+1. **Missing endpoint configuration** in hyperprocess macro:
+```rust
+#[hyperprocess(
+    endpoints = vec![
+        Binding::Ws {
+            path: "/ws",
+            config: WsBindingConfig::default().authenticated(false),
+        },
+    ],
+)]
+```
+
+2. **Frontend connection issues:**
+```typescript
+// ❌ WRONG - Missing authentication
+const ws = new WebSocket('ws://localhost:8080/ws');
+
+// ✅ CORRECT - Include proper URL
+const ws = new WebSocket(`ws://${window.location.host}/${appName}/ws`);
 ```
 
 ### ❌ Forgetting async on endpoints
@@ -695,6 +829,105 @@ When nothing works, check:
    - [ ] Refreshing after mutations?
    - [ ] Passing values explicitly (not from React state)?
 
+## 7. Audio/Real-time Data Issues (Voice Apps)
+
+### ❌ Base64 encoding/decoding issues
+```rust
+// ❌ WRONG - Manual base64 handling
+let decoded = base64::decode(&data)?;
+
+// ✅ CORRECT - Use proper engine
+use base64::{Engine as _, engine::general_purpose};
+let decoded = general_purpose::STANDARD.decode(&data).unwrap_or_default();
+let encoded = general_purpose::STANDARD.encode(&bytes);
+```
+
+### ❌ Thread safety with audio processing
+```rust
+// ❌ WRONG - Direct mutation in WebSocket handler
+self.audio_buffer.push(audio_data);
+
+// ✅ CORRECT - Use Arc<Mutex<>> for thread-safe access
+use std::sync::{Arc, Mutex};
+
+// In state
+audio_processors: HashMap<String, Arc<Mutex<AudioProcessor>>>,
+
+// In handler
+if let Ok(mut proc) = processor.lock() {
+    proc.process_audio(data);
+}
+```
+
+### ❌ WebSocket message sequencing
+```rust
+// Track sequence numbers for audio streams
+#[derive(Serialize, Deserialize)]
+struct AudioData {
+    data: String,
+    sequence: Option<u32>,
+    timestamp: Option<u64>,
+}
+
+// Maintain sequence counters
+participant_sequences: HashMap<String, u32>,
+```
+
+### ❌ Binary data in LazyLoadBlob
+```rust
+// For binary WebSocket data
+let blob = LazyLoadBlob {
+    mime: Some("application/octet-stream".to_string()),
+    bytes: audio_bytes,
+};
+send_ws_push(channel_id, WsMessageType::Binary, blob);
+```
+
+## 8. P2P Validation Patterns
+
+### Common P2P validation errors from samchat:
+
+**Backend validation:**
+```rust
+// Empty fields
+if recipient_address.trim().is_empty() || message_content.trim().is_empty() {
+    return Err("Recipient address and message content cannot be empty".to_string());
+}
+
+// Format validation
+if !is_group && !recipient_address.contains('.') {
+    return Err("Invalid recipient address format (e.g., 'username.os')".to_string());
+}
+
+// Group constraints
+if participants.len() < 2 {
+    return Err("Group must have at least 2 participants".to_string());
+}
+```
+
+**Frontend validation:**
+```typescript
+// In React component
+if (!groupName.trim()) {
+    setError("Please enter a group name");
+    return;
+}
+
+// Parse and validate lists
+const members = groupMembers.split(',').map(m => m.trim()).filter(m => m);
+if (members.length === 0) {
+    setError("Please enter at least one valid member address");
+    return;
+}
+
+// Clear errors on navigation
+const handleSelectConversation = useCallback((conversationId: string) => {
+    fetchMessages(conversationId);
+    setError(null);
+    setReplyingTo(null);
+}, [fetchMessages]);
+```
+
 ## Still Stuck?
 
 1. Add logging everywhere:
@@ -704,8 +937,18 @@ When nothing works, check:
 
 2. Check both node consoles for P2P issues
 
-3. Use browser DevTools Network tab
+3. Use browser DevTools:
+   - Network tab for HTTP/WebSocket
+   - Console for JavaScript errors
+   - Application tab for storage
 
-4. Start with minimal example and add complexity
+4. For voice apps:
+   - Check browser permissions for microphone
+   - Monitor WebSocket frames in DevTools
+   - Log audio buffer sizes and timing
 
-5. Compare with working samchat example
+5. Start with minimal example and add complexity
+
+6. Compare with working examples:
+   - samchat for P2P chat patterns
+   - voice for WebSocket/audio patterns

@@ -59,6 +59,11 @@ This directory contains comprehensive guides designed specifically for AI models
   - Use when: Building apps that need persistent data storage
   - Contains: Setup, basic operations, advanced patterns, complete examples
 
+### For Real-time Communication
+- **[11-REALTIME-COMMUNICATION-PATTERNS.md](./11-REALTIME-COMMUNICATION-PATTERNS.md)** - WebSocket & streaming patterns
+  - Use when: Building voice/video chat, collaborative editing, or real-time features
+  - Contains: WebSocket protocols, audio streaming, state sync, performance patterns
+
 ## 🔍 How to Use These Guides
 
 ### Quick Start Path (For Beginners)
@@ -120,6 +125,7 @@ Need quick syntax reminder? → QUICK-REFERENCE
 Want to see full examples? → COMPLETE-EXAMPLES
 Getting manifest.json errors? → MANIFEST-AND-DEPLOYMENT
 Need to know what capabilities? → CAPABILITIES-GUIDE
+Building real-time features? → REALTIME-COMMUNICATION-PATTERNS
 ```
 
 ### "My build is failing"

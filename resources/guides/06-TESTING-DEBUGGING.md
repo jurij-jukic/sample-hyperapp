@@ -255,7 +255,67 @@ export function useItems() {
 useItems.displayName = 'useItems';
 ```
 
-### 3. Network Debugging
+### 3. WebSocket Debugging
+
+#### Monitor WebSocket Traffic
+```typescript
+// src/utils/ws-debug.ts
+class WebSocketDebugger {
+  private originalWS = WebSocket;
+  
+  enable() {
+    const self = this;
+    // @ts-ignore
+    window.WebSocket = class extends this.originalWS {
+      constructor(url: string, protocols?: string | string[]) {
+        console.log(`🔌 WS Connecting to: ${url}`);
+        super(url, protocols);
+        
+        this.addEventListener('open', (event) => {
+          console.log(`✅ WS Connected: ${url}`);
+        });
+        
+        this.addEventListener('message', (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log(`📨 WS Received:`, data);
+          } catch {
+            console.log(`📨 WS Received (raw):`, event.data);
+          }
+        });
+        
+        this.addEventListener('error', (event) => {
+          console.error(`❌ WS Error:`, event);
+        });
+        
+        this.addEventListener('close', (event) => {
+          console.log(`🔌 WS Closed: code=${event.code} reason=${event.reason}`);
+        });
+        
+        // Intercept send
+        const originalSend = this.send.bind(this);
+        this.send = (data: any) => {
+          console.log(`📤 WS Send:`, typeof data === 'string' ? JSON.parse(data) : data);
+          return originalSend(data);
+        };
+      }
+    };
+  }
+  
+  disable() {
+    window.WebSocket = this.originalWS;
+  }
+}
+
+export const wsDebugger = new WebSocketDebugger();
+
+// Enable in development
+if (import.meta.env.DEV) {
+  wsDebugger.enable();
+}
+```
+
+### 4. Network Debugging
 
 #### Monitor All HTTP Traffic
 ```typescript
@@ -653,6 +713,212 @@ async fn diagnose_p2p(&self, request_body: String) -> String {
 }
 ```
 
+## Audio Context Debugging
+
+### Monitor Audio Context State
+```typescript
+// Track audio context states for debugging autoplay issues
+export class AudioContextMonitor {
+  private contexts: Map<string, AudioContext> = new Map();
+  
+  register(name: string, context: AudioContext): void {
+    this.contexts.set(name, context);
+    
+    // Log initial state
+    console.log(`[Audio] ${name} registered - state: ${context.state}`);
+    
+    // Monitor state changes
+    context.addEventListener('statechange', () => {
+      console.log(`[Audio] ${name} state changed to: ${context.state}`);
+    });
+  }
+  
+  async resumeAll(): Promise<void> {
+    for (const [name, context] of this.contexts) {
+      if (context.state === 'suspended') {
+        try {
+          await context.resume();
+          console.log(`[Audio] ${name} resumed successfully`);
+        } catch (error) {
+          console.error(`[Audio] Failed to resume ${name}:`, error);
+        }
+      }
+    }
+  }
+  
+  getStates(): Record<string, AudioContextState> {
+    const states: Record<string, AudioContextState> = {};
+    for (const [name, context] of this.contexts) {
+      states[name] = context.state;
+    }
+    return states;
+  }
+}
+
+// Usage in your app
+const audioMonitor = new AudioContextMonitor();
+audioMonitor.register('playback', playbackContext);
+audioMonitor.register('capture', captureContext);
+```
+
+## Real-time Performance Monitoring
+
+### Track Critical Metrics
+```typescript
+// Monitor packet loss and jitter
+class NetworkMetrics {
+  private sequenceNumbers: Map<string, number> = new Map();
+  private packetLoss: Map<string, number[]> = new Map();
+  private jitterBuffer: Map<string, number[]> = new Map();
+  
+  trackPacket(streamId: string, sequence: number, timestamp: number): void {
+    // Track sequence gaps
+    const lastSeq = this.sequenceNumbers.get(streamId) || -1;
+    if (lastSeq !== -1 && sequence > lastSeq + 1) {
+      const losses = this.packetLoss.get(streamId) || [];
+      for (let i = lastSeq + 1; i < sequence; i++) {
+        losses.push(i);
+      }
+      this.packetLoss.set(streamId, losses);
+    }
+    this.sequenceNumbers.set(streamId, sequence);
+    
+    // Track jitter
+    const jitters = this.jitterBuffer.get(streamId) || [];
+    jitters.push(timestamp);
+    if (jitters.length > 100) jitters.shift(); // Keep last 100
+    this.jitterBuffer.set(streamId, jitters);
+  }
+  
+  getStats(streamId: string): { loss: number; jitter: number } {
+    const losses = this.packetLoss.get(streamId) || [];
+    const total = this.sequenceNumbers.get(streamId) || 0;
+    const lossRate = total > 0 ? losses.length / total : 0;
+    
+    const jitters = this.jitterBuffer.get(streamId) || [];
+    const jitter = this.calculateJitter(jitters);
+    
+    return { loss: lossRate, jitter };
+  }
+  
+  private calculateJitter(timestamps: number[]): number {
+    if (timestamps.length < 2) return 0;
+    let sum = 0;
+    for (let i = 1; i < timestamps.length; i++) {
+      sum += Math.abs(timestamps[i] - timestamps[i-1]);
+    }
+    return sum / (timestamps.length - 1);
+  }
+}
+```
+
+### Heartbeat Monitoring
+```typescript
+// Monitor connection health with heartbeats
+class HeartbeatMonitor {
+  private intervals: Map<string, NodeJS.Timeout> = new Map();
+  private lastHeartbeats: Map<string, number> = new Map();
+  private callbacks: Map<string, () => void> = new Map();
+  
+  start(id: string, intervalMs: number, timeoutMs: number, onTimeout: () => void): void {
+    this.callbacks.set(id, onTimeout);
+    this.lastHeartbeats.set(id, Date.now());
+    
+    const interval = setInterval(() => {
+      const last = this.lastHeartbeats.get(id) || 0;
+      const elapsed = Date.now() - last;
+      
+      if (elapsed > timeoutMs) {
+        console.warn(`[Heartbeat] ${id} timed out after ${elapsed}ms`);
+        this.stop(id);
+        onTimeout();
+      }
+    }, intervalMs);
+    
+    this.intervals.set(id, interval);
+  }
+  
+  pulse(id: string): void {
+    this.lastHeartbeats.set(id, Date.now());
+  }
+  
+  stop(id: string): void {
+    const interval = this.intervals.get(id);
+    if (interval) {
+      clearInterval(interval);
+      this.intervals.delete(id);
+    }
+  }
+}
+```
+
+## Memory Management & Cleanup
+
+### Periodic Resource Cleanup
+```typescript
+// Prevent memory leaks in long-running sessions
+class ResourceManager {
+  private cleanupTasks: Array<() => void> = [];
+  private cleanupInterval: number | null = null;
+  
+  register(cleanup: () => void): void {
+    this.cleanupTasks.push(cleanup);
+  }
+  
+  startPeriodicCleanup(intervalMs: number = 60000): void {
+    this.cleanupInterval = window.setInterval(() => {
+      console.log('[ResourceManager] Running periodic cleanup...');
+      
+      // Run all cleanup tasks
+      for (const task of this.cleanupTasks) {
+        try {
+          task();
+        } catch (error) {
+          console.error('[ResourceManager] Cleanup task failed:', error);
+        }
+      }
+      
+      // Hint for garbage collection (browser may ignore)
+      if ('gc' in window && typeof (window as any).gc === 'function') {
+        (window as any).gc();
+      }
+    }, intervalMs);
+  }
+  
+  cleanup(): void {
+    if (this.cleanupInterval !== null) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    
+    // Run final cleanup
+    for (const task of this.cleanupTasks) {
+      try {
+        task();
+      } catch (error) {
+        console.error('[ResourceManager] Final cleanup failed:', error);
+      }
+    }
+  }
+}
+
+// Usage example
+const resources = new ResourceManager();
+
+// Register cleanup for audio buffers
+resources.register(() => {
+  // Clean up old jitter buffers
+  for (const [key, buffer] of jitterBuffers) {
+    if (buffer.getBufferSize() === 0 && Date.now() - buffer.lastActivity > 60000) {
+      buffer.cleanup();
+      jitterBuffers.delete(key);
+    }
+  }
+});
+
+resources.startPeriodicCleanup();
+```
+
 ## Production Debugging
 
 ### 1. Conditional Logging
@@ -692,6 +958,266 @@ export function reportError(error: Error, context: Record<string, any>) {
 }
 ```
 
+## P2P Chat Testing Patterns (from samchat)
+
+### Debug Logging for P2P Operations
+
+```rust
+// Node initialization
+#[init]
+async fn initialize(&mut self) {
+    println!("Initializing Samchat state...");
+    self.my_node_id = Some(our().node.clone());
+    println!("Samchat initialized for node: {:?}", self.my_node_id);
+}
+
+// P2P message sending
+async fn send_message_with_reply(&mut self, recipient: String, content: String, reply: Option<MessageReplyInfo>) -> Result<bool, String> {
+    println!("send_message_with_reply called: to={}, content='{}', reply_to={:?}", recipient, content, reply);
+    // ... implementation
+}
+
+// Remote message receipt
+#[remote]
+async fn receive_message(&mut self, message: ChatMessage) -> Result<bool, String> {
+    println!("receive_message called: from={}, content='{}'", message.sender, message.content);
+    
+    // Track duplicates
+    if !conversation.messages.iter().any(|m| m.id == message.id) {
+        println!("Message {} received and persisted.", message.id);
+    } else {
+        println!("Duplicate message {} received, ignoring.", message.id);
+    }
+}
+
+// Group operations
+async fn create_group(&mut self, name: String, members: Vec<String>) -> Result<String, String> {
+    println!("create_group called: name={}, members={:?}", name, members);
+    // ... create group
+    println!("Group created locally: {}", group_id);
+    
+    // Debug member notifications
+    for participant in &participants {
+        println!("Notifying {} about new group {}", participant, group_id);
+    }
+}
+```
+
+### Testing P2P Chat Scenarios
+
+```bash
+# P2P Chat Test Script
+#!/bin/bash
+
+# Start three nodes for group chat testing
+kit s --fake-node alice.os &
+ALICE_PID=$!
+sleep 2
+
+kit s --fake-node bob.os --port 8081 &
+BOB_PID=$!
+sleep 2
+
+kit s --fake-node charlie.os --port 8082 &
+CHARLIE_PID=$!
+sleep 2
+
+echo "Chat nodes started:"
+echo "- Alice: http://localhost:8080"
+echo "- Bob: http://localhost:8081"
+echo "- Charlie: http://localhost:8082"
+```
+
+### P2P Chat Test Checklist
+
+```typescript
+export const CHAT_TEST_SCENARIOS = [
+  {
+    name: "Direct Message Delivery",
+    steps: [
+      "Open Alice and Bob nodes",
+      "Send message from Alice to Bob",
+      "Verify message appears on Bob's side",
+      "Check sender info is correct",
+      "Verify timestamps are consistent",
+    ],
+  },
+  {
+    name: "Group Chat Creation",
+    steps: [
+      "Create group on Alice with Bob and Charlie",
+      "Verify group appears on all nodes",
+      "Check member list is correct on all nodes",
+      "Send message to group from Alice",
+      "Verify all members receive the message",
+      "Check sender attribution in group messages",
+    ],
+  },
+  {
+    name: "File Transfer Between Nodes",
+    steps: [
+      "Upload file on Alice node",
+      "Send file message to Bob",
+      "Verify file metadata appears correctly",
+      "Download file on Bob's node",
+      "Verify file content matches original",
+      "Check local caching after download",
+    ],
+  },
+  {
+    name: "Message Reply Threading",
+    steps: [
+      "Send message from Alice to Bob",
+      "Reply to message from Bob",
+      "Verify reply context is preserved",
+      "Check reply renders correctly on both sides",
+      "Test reply in group conversations",
+    ],
+  },
+  {
+    name: "Offline Message Handling",
+    steps: [
+      "Send message from Alice to Bob",
+      "Stop Bob's node",
+      "Send another message from Alice",
+      "Restart Bob's node",
+      "Check if Bob receives pending messages",
+      "Verify message order is preserved",
+    ],
+  },
+];
+```
+
+### Debug Helpers for P2P Chat
+
+```rust
+// Debug endpoint to inspect conversations
+#[http]
+async fn debug_conversations(&self, _request_body: String) -> String {
+    if cfg!(debug_assertions) {
+        let debug_info = self.conversations.iter()
+            .map(|(id, conv)| {
+                json!({
+                    "id": id,
+                    "participants": conv.participants,
+                    "message_count": conv.messages.len(),
+                    "is_group": conv.is_group,
+                    "group_name": conv.group_name,
+                    "last_updated": conv.last_updated,
+                })
+            })
+            .collect::<Vec<_>>();
+        
+        serde_json::to_string_pretty(&debug_info).unwrap()
+    } else {
+        "Debug disabled in production".to_string()
+    }
+}
+
+// Check message delivery status
+#[http]
+async fn debug_check_delivery(&self, message_id: String) -> String {
+    for (conv_id, conv) in &self.conversations {
+        if let Some(msg) = conv.messages.iter().find(|m| m.id == message_id) {
+            return json!({
+                "found": true,
+                "conversation": conv_id,
+                "sender": msg.sender,
+                "delivered": msg.delivered,
+                "timestamp": msg.timestamp,
+            }).to_string();
+        }
+    }
+    json!({ "found": false }).to_string()
+}
+```
+
+### Frontend Debug Panel for Chat
+
+```typescript
+// Debug panel for P2P chat
+export const ChatDebugPanel: React.FC = () => {
+  const { conversations, currentConversationMessages, myNodeId } = useSamchatStore();
+  const [showDebug, setShowDebug] = useState(false);
+  
+  if (!import.meta.env.DEV) return null;
+  
+  return (
+    <>
+      <button 
+        onClick={() => setShowDebug(!showDebug)}
+        style={{ position: 'fixed', bottom: 10, left: 10, zIndex: 1000 }}
+      >
+        Debug
+      </button>
+      
+      {showDebug && (
+        <div style={{
+          position: 'fixed',
+          bottom: 50,
+          left: 10,
+          background: 'rgba(0,0,0,0.9)',
+          color: 'white',
+          padding: '10px',
+          maxWidth: '400px',
+          maxHeight: '300px',
+          overflow: 'auto',
+          fontSize: '12px',
+          fontFamily: 'monospace',
+        }}>
+          <h4>Chat Debug Info</h4>
+          <div>My Node: {myNodeId}</div>
+          <div>Conversations: {conversations.length}</div>
+          <div>Current Messages: {currentConversationMessages.length}</div>
+          
+          <h5>Conversation Details:</h5>
+          {conversations.map(conv => (
+            <div key={conv.id} style={{ marginBottom: '5px' }}>
+              {conv.is_group ? '👥' : '💬'} {conv.group_name || conv.participants.join(' ↔ ')}
+              <br />
+              Last: {new Date(conv.last_updated).toLocaleTimeString()}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+};
+```
+
+### Testing File Transfer Debug
+
+```rust
+// Track file operations
+struct FileTransferDebug {
+    uploads: Vec<(String, String, u64)>, // file_id, name, size
+    downloads: Vec<(String, String, bool)>, // file_id, from_node, success
+}
+
+impl AppState {
+    fn debug_file_transfer(&self, file_id: &str) {
+        println!("=== FILE TRANSFER DEBUG ===");
+        println!("File ID: {}", file_id);
+        
+        // Check local storage
+        let local_path = format!("/samchat:hpn-testing-beta.os/files/{}", file_id);
+        println!("Local path: {}", local_path);
+        
+        // Track transfer history
+        if let Some(upload) = self.file_debug.uploads.iter().find(|(id, _, _)| id == file_id) {
+            println!("Uploaded: {} ({} bytes)", upload.1, upload.2);
+        }
+        
+        for download in &self.file_debug.downloads {
+            if download.0 == file_id {
+                println!("Downloaded from {}: {}", download.1, if download.2 { "✓" } else { "✗" });
+            }
+        }
+        println!("========================");
+    }
+}
+```
+
 ## Remember
 
 1. **Always test P2P early** - Single node testing hides issues
@@ -701,3 +1227,6 @@ export function reportError(error: Error, context: Record<string, any>) {
 5. **Monitor performance** - Catch slowdowns before users do
 6. **Document issues** - Future you will thank you
 7. **Clean up debug code** - Don't ship console.logs to production
+8. **Test group operations** - Multi-node scenarios reveal race conditions
+9. **Debug message delivery** - Track messages across nodes
+10. **Monitor file transfers** - P2P file sharing needs extra care

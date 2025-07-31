@@ -26,13 +26,14 @@ add_to_homepage("My App", Some("🚀"), Some("/"), None);
 ---
 
 ### 🌐 http-client:distro:sys
-**Purpose**: Make outbound HTTP requests
+**Purpose**: Make outbound HTTP requests to external services
 
 **Used for**:
 - Fetching data from external APIs
 - Webhooks
 - OAuth flows
 - RSS feeds
+- Calling other nodes' HTTP endpoints (alternative to native P2P)
 
 **Example**:
 ```rust
@@ -45,6 +46,8 @@ let response = ClientRequest::new()
     .await?;
 ```
 
+**Note**: For P2P messaging between Hyperware processes, use the native Request API (requires `request_networking: true` in manifest.json), NOT http-client!
+
 ---
 
 ### 🖥️ http-server:distro:sys
@@ -53,10 +56,13 @@ let response = ClientRequest::new()
 **Required for**:
 - The `/api` endpoint for your frontend
 - Serving your UI at root path
-- WebSocket connections
+- WebSocket connections (`/ws` endpoints)
 - Any HTTP endpoints
+- Dynamic UI serving (e.g., `/call/<id>`)
 
 **Without it**: No UI, no API!
+
+**Note**: This single capability enables both HTTP and WebSocket support - no separate WebSocket capability needed!
 
 ---
 
@@ -261,15 +267,73 @@ let keys = list_keys("user:*")?;
 ]
 ```
 
-### P2P Collaborative App
+### P2P Collaborative App (Chat, File Sharing, etc.)
+```json
+"request_networking": true,       // CRITICAL: Enables P2P messaging via Request API
+"request_capabilities": [
+  "homepage:homepage:sys",
+  "http-server:distro:sys",       // Serve UI and API endpoints
+  "vfs:distro:sys"                // Store messages, files, and state
+]
+```
+
+**Note**: P2P messaging in Hyperware uses the native Request API, which requires `"request_networking": true` in manifest.json. The `http-client:distro:sys` capability is only needed for external HTTP requests, not for P2P!
+
+### Real-time Voice/Video App
 ```json
 "request_capabilities": [
   "homepage:homepage:sys",
-  "http-server:distro:sys",
-  "vfs:distro:sys",
-  "net:distro:sys"  // For P2P networking
+  "http-server:distro:sys",  // Includes WebSocket support
+  "vfs:distro:sys"           // For storing settings/history
 ]
 ```
+
+## P2P Messaging vs HTTP Client
+
+**IMPORTANT**: There are two ways to communicate between Hyperware nodes:
+
+### 1. Native Request API (Recommended for P2P)
+```rust
+// Uses request_networking: true in manifest.json
+Request::new()
+    .target(Address::new(node_id, "process:package:publisher"))
+    .body(message_bytes)
+    .send_and_await_response(30)?;
+```
+- Requires: `"request_networking": true` in manifest.json
+- Does NOT require: Any specific capability
+- Used for: Direct process-to-process messaging
+- More efficient for P2P apps
+
+### 2. HTTP Client to Node Endpoints
+```rust
+// Uses http-client:distro:sys capability
+ClientRequest::new()
+    .url(&format!("http://{}/api/endpoint", node_address))
+    .body(data)
+    .send()
+    .await?;
+```
+- Requires: `"http-client:distro:sys"` capability
+- Used for: External APIs or when you need HTTP semantics
+- Less efficient for P2P but works across different systems
+
+## What Doesn't Need Capabilities?
+
+Many browser APIs work without special Hyperware capabilities:
+
+### ✅ Works Without Special Capabilities:
+- **WebRTC** - Audio/video calls, screen sharing
+- **getUserMedia** - Camera/microphone access
+- **Web Audio API** - Audio processing, effects
+- **Canvas/WebGL** - Graphics rendering
+- **Geolocation** - Location services
+- **IndexedDB** - Browser storage
+- **Service Workers** - Offline functionality
+- **Web Workers** - Background processing
+- **Notifications API** - Browser notifications
+
+These are browser-level APIs that work if the user grants browser permissions. They don't need Hyperware capabilities!
 
 ## Granting Capabilities
 
@@ -373,13 +437,15 @@ Error: Process X cannot message process Y
 | Show app icon | `homepage:homepage:sys` |
 | Serve UI | `http-server:distro:sys` |
 | API endpoints | `http-server:distro:sys` |
+| WebSocket endpoints | `http-server:distro:sys` |
 | External APIs | `http-client:distro:sys` |
 | File storage | `vfs:distro:sys` |
-| Database | `sqlite:distro:sys` |
+| Database | `sqlite:distro:sys` + `vfs:distro:sys` |
 | Blockchain | `eth:distro:sys` |
 | Scheduling | `timer:distro:sys` |
 | Settings storage | `kv:distro:sys` |
 | Custom networking | `net:tcp:sys`, `net:udp:sys` |
+| WebRTC/Audio/Video | None (browser APIs) |
 
 ## Testing Capabilities
 

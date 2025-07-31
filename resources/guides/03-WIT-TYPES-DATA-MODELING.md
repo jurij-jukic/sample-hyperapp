@@ -89,14 +89,14 @@ async fn update_game_state(&mut self, request_body: String) -> Result<String, St
 ### 3. Enum Handling
 
 ```rust
-// ❌ WRONG - Complex enum variants not supported
+// ❌ WRONG - Complex enum variants not supported by WIT directly
 pub enum GameEvent {
     PlayerJoined { player_id: String, timestamp: u64 },
     MoveMade { from: Position, to: Position },
     GameEnded { winner: Option<String>, reason: EndReason },
 }
 
-// ✅ PATTERN 1: Simple enum + data struct
+// ✅ PATTERN 1: Simple enum + data struct (WIT-compatible)
 #[derive(Serialize, Deserialize, PartialEq)]
 pub enum EventType {
     PlayerJoined,
@@ -114,7 +114,27 @@ pub struct GameEvent {
     pub timestamp: u64,
 }
 
-// ✅ PATTERN 2: Tagged unions via JSON
+// ✅ PATTERN 2: Complex enums with mixed variants (JSON-only)
+#[derive(Serialize, Deserialize)]
+pub enum WsMessage {
+    // Simple variants work fine
+    Heartbeat,
+    Disconnect,
+    
+    // Complex variants with nested serde attributes
+    #[serde(rename_all = "camelCase")]
+    JoinRoom { 
+        room_id: String, 
+        auth_token: Option<String>,
+        user_settings: UserSettings,
+    },
+    
+    // Single data variants
+    Chat(String),
+    UpdateStatus(Status),
+}
+
+// ✅ PATTERN 3: Tagged unions via JSON
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum GameEvent {
@@ -241,8 +261,21 @@ pub struct GameSettings {
     pub game_mode: String,
 }
 
+// ✅ Modern approach - Direct type deserialization
+#[http(method = "POST")]
+async fn create_game(&mut self, command: CreateGameCommand) -> Result<GameInfo, String> {
+    // Process command directly
+    let game_id = self.create_game_from_command(command)?;
+    
+    Ok(GameInfo {
+        id: game_id,
+        status: GameStatus::Waiting,
+    })
+}
+
+// ✅ Legacy approach - Manual JSON parsing
 #[http]
-async fn create_game(&mut self, request_body: String) -> Result<String, String> {
+async fn create_game_legacy(&mut self, request_body: String) -> Result<String, String> {
     let command: CreateGameCommand = serde_json::from_str(&request_body)?;
     
     // Process command
@@ -335,6 +368,173 @@ async fn add_event(&mut self, request_body: String) -> Result<String, String> {
     self.events.push(event);
     self.rebuild_state();
     Ok("Event added".to_string())
+}
+```
+
+## Real-World Patterns from P2P Apps
+
+### Timestamp Handling (from samchat)
+
+```rust
+// ❌ WRONG - chrono types not WIT-compatible
+use chrono::{DateTime, Utc};
+pub struct Message {
+    pub timestamp: DateTime<Utc>,
+}
+
+// ✅ CORRECT - RFC3339 strings (sorts lexicographically!)
+pub struct ChatMessage {
+    pub timestamp: String, // RFC3339 string for WIT compatibility
+}
+
+// Usage
+let current_time_str = Utc::now().to_rfc3339();
+
+// Sorting works naturally with RFC3339 strings
+conversation.messages.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+```
+
+### Complex Message Types with Optionals
+
+```rust
+// P2P chat pattern: One type handles multiple scenarios
+#[derive(PartialEq, Clone, Debug, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub id: String,
+    pub conversation_id: String,
+    pub sender: String,
+    pub recipient: Option<String>,      // None for group messages
+    pub recipients: Option<Vec<String>>, // Some for group messages
+    pub content: String,
+    pub timestamp: String,
+    pub delivered: bool,
+    pub file_info: Option<FileInfo>,     // Optional attachment
+    pub reply_to: Option<MessageReplyInfo>, // Optional reply
+}
+
+// This avoids complex enums while supporting:
+// - Direct messages (recipient = Some, recipients = None)
+// - Group messages (recipient = None, recipients = Some)
+// - Messages with/without files
+// - Messages with/without replies
+```
+
+### HashMap in State, Vec in API
+
+```rust
+// Internal state uses HashMap for efficiency
+#[derive(Default, Serialize, Deserialize)]
+pub struct SamchatState {
+    conversations: HashMap<String, Conversation>,
+    my_node_id: Option<String>,
+}
+
+// But expose as Vec through endpoints
+#[http]
+async fn get_conversations(&self, _request_body: String) -> Vec<ConversationSummary> {
+    self.conversations.values()
+        .map(|conv| ConversationSummary {
+            id: conv.id.clone(),
+            participants: conv.participants.clone(),
+            last_updated: conv.last_updated.clone(),
+            is_group: conv.is_group,
+            group_name: conv.group_name.clone(),
+        })
+        .collect()
+}
+```
+
+### Binary Data Transfer
+
+```rust
+// Backend: Vec<u8> for file data
+#[http]
+async fn upload_file(&mut self, file_name: String, mime_type: String, file_data: Vec<u8>) -> Result<FileInfo, String> {
+    // Process binary data
+}
+
+// Frontend TypeScript: number[] maps to Vec<u8>
+export interface UploadFileRequest {
+    UploadFile: [string, string, number[]]; // file_name, mime_type, file_data
+}
+```
+
+## TypeScript/JavaScript Compatibility
+
+### camelCase Serialization
+
+When your frontend uses TypeScript/JavaScript conventions, use serde's rename attributes:
+
+```rust
+// ✅ Rust snake_case -> TypeScript camelCase
+#[derive(Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct UserProfile {
+    pub user_id: String,        // -> userId
+    pub display_name: String,   // -> displayName
+    pub created_at: u64,        // -> createdAt
+    pub is_active: bool,        // -> isActive
+}
+
+// ✅ Works with enums too
+#[derive(Serialize, Deserialize)]
+pub enum ApiMessage {
+    #[serde(rename_all = "camelCase")]
+    UserJoined {
+        user_id: String,
+        joined_at: u64,
+    },
+    
+    #[serde(rename_all = "camelCase")]
+    MessageSent {
+        message_id: String,
+        sender_id: String,
+        sent_at: u64,
+    },
+}
+
+// ✅ Different rename patterns
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]  // For C# style
+pub struct ConfigData {
+    pub app_name: String,     // -> AppName
+    pub version: String,      // -> Version
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]  // For constants
+pub struct Constants {
+    pub max_users: u32,       // -> MAX_USERS
+    pub timeout_ms: u64,      // -> TIMEOUT_MS
+}
+```
+
+### Skip Serialization
+
+For internal fields that shouldn't be exposed:
+
+```rust
+#[derive(Default, Serialize, Deserialize)]
+pub struct AppState {
+    // Public fields
+    pub users: Vec<User>,
+    pub settings: Settings,
+    
+    // Internal cache - not serialized
+    #[serde(skip)]
+    user_cache: HashMap<String, User>,
+    
+    // Skip with default value on deserialize
+    #[serde(skip_deserializing, default)]
+    computed_stats: Stats,
+    
+    // Custom default function
+    #[serde(skip, default = "default_processors")]
+    processors: HashMap<String, Processor>,
+}
+
+fn default_processors() -> HashMap<String, Processor> {
+    HashMap::new()
 }
 ```
 

@@ -9,7 +9,8 @@
 6. [Error Handling Patterns](#error-handling-patterns)
 7. [UI State Management](#ui-state-management)
 8. [Authentication & Permissions](#authentication--permissions)
-9. [Timer Patterns](#timer-patterns)
+9. [Group Chat Patterns](#group-chat-patterns)
+10. [Timer Patterns](#timer-patterns)
 
 ---
 
@@ -377,6 +378,8 @@ async fn reliable_remote_call(
 
 ## File Handling Patterns
 
+**Note**: These patterns require the `"vfs:distro:sys"` capability and importing `Address` and `ProcessId` from hyperware_process_lib.
+
 ### File Upload
 ```rust
 #[http]
@@ -454,7 +457,67 @@ async fn download_file(&self, request_body: String) -> Result<Vec<u8>, String> {
 
 ## Real-time Update Patterns
 
-### Polling Pattern (WebSockets not yet supported)
+### WebSocket Pattern
+```rust
+use hyperware_process_lib::{LazyLoadBlob, http::server::{send_ws_push, WsMessageType}};
+
+// Configure WebSocket endpoint in hyperprocess macro
+#[hyperprocess(
+    endpoints = vec![
+        Binding::Ws {
+            path: "/ws",
+            config: WsBindingConfig::default().authenticated(false),
+        },
+    ],
+)]
+
+// WebSocket handler
+#[ws]
+fn websocket(&mut self, channel_id: u32, message_type: WsMessageType, blob: LazyLoadBlob) {
+    match message_type {
+        WsMessageType::Text => {
+            if let Ok(message) = String::from_utf8(blob.bytes) {
+                // Parse and handle client message
+                match serde_json::from_str::<ClientMessage>(&message) {
+                    Ok(msg) => self.handle_ws_message(channel_id, msg),
+                    Err(e) => self.send_ws_error(channel_id, &format!("Invalid message: {}", e)),
+                }
+            }
+        }
+        WsMessageType::Close => {
+            // Clean up on disconnect
+            self.handle_ws_disconnect(channel_id);
+        }
+        _ => {}
+    }
+}
+
+// Send message to specific client
+fn send_to_channel(&self, channel_id: u32, message: ServerMessage) {
+    let json = serde_json::to_string(&message).unwrap();
+    let blob = LazyLoadBlob {
+        mime: Some("application/json".to_string()),
+        bytes: json.into_bytes(),
+    };
+    send_ws_push(channel_id, WsMessageType::Text, blob);
+}
+
+// Broadcast to all connected clients
+fn broadcast(&self, message: ServerMessage) {
+    let json = serde_json::to_string(&message).unwrap();
+    let bytes = json.into_bytes();
+    
+    for &channel_id in &self.connected_channels {
+        let blob = LazyLoadBlob {
+            mime: Some("application/json".to_string()),
+            bytes: bytes.clone(),
+        };
+        send_ws_push(channel_id, WsMessageType::Text, blob);
+    }
+}
+```
+
+### Polling Pattern (Fallback)
 ```rust
 // Backend: Track updates
 #[derive(Default, Serialize, Deserialize)]
@@ -515,6 +578,57 @@ export const useAppStore = create<AppStore>((set, get) => ({
         }
     },
 }));
+```
+
+---
+
+## Dynamic UI Serving Pattern
+
+### Serve UI at Dynamic Paths
+```rust
+use hyperware_app_common::{get_server, HttpBindingConfig};
+
+// Serve UI at a dynamic path (e.g., for a chat room)
+#[http]
+async fn create_room(&mut self, request: CreateRoomReq) -> Result<RoomInfo, String> {
+    let room_id = generate_room_id();
+    
+    // Create room state
+    let room = Room {
+        id: room_id.clone(),
+        // ... other fields
+    };
+    self.rooms.insert(room_id.clone(), room);
+    
+    // Serve UI at /room/<room-id>
+    let room_path = format!("/room/{}", room_id);
+    get_server()
+        .unwrap()
+        .serve_ui(
+            "ui-room", // UI bundle name
+            vec![&room_path],
+            HttpBindingConfig::default().authenticated(false)
+        )
+        .map_err(|e| format!("Failed to serve UI: {:?}", e))?;
+    
+    Ok(RoomInfo { id: room_id })
+}
+
+// Unserve UI when room is deleted
+#[http]
+async fn delete_room(&mut self, room_id: String) -> Result<(), String> {
+    // Remove room
+    self.rooms.remove(&room_id);
+    
+    // Stop serving UI
+    let room_path = format!("/room/{}", room_id);
+    get_server()
+        .unwrap()
+        .unserve_ui("ui-room", vec![&room_path])
+        .map_err(|e| format!("Failed to unserve UI: {:?}", e))?;
+    
+    Ok(())
+}
 ```
 
 ---
@@ -720,6 +834,61 @@ export const usePagination = () => {
 
 ## Authentication & Permissions
 
+### Role-Based Access Control
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Role {
+    Listener,  // Can only listen
+    Chatter,   // Can listen + chat
+    Speaker,   // Can listen + chat + speak
+    Admin,     // All permissions
+}
+
+// Define what each role can do
+impl Role {
+    fn can_chat(&self) -> bool {
+        matches!(self, Role::Chatter | Role::Speaker | Role::Admin)
+    }
+    
+    fn can_speak(&self) -> bool {
+        matches!(self, Role::Speaker | Role::Admin)
+    }
+    
+    fn can_admin(&self) -> bool {
+        matches!(self, Role::Admin)
+    }
+}
+
+// WebSocket with role-based permissions
+fn handle_ws_message(&mut self, channel_id: u32, msg: ClientMessage) {
+    let participant = match self.get_participant_by_channel(channel_id) {
+        Some(p) => p,
+        None => {
+            self.send_ws_error(channel_id, "Not authenticated");
+            return;
+        }
+    };
+    
+    match msg {
+        ClientMessage::Chat(content) => {
+            if !participant.role.can_chat() {
+                self.send_ws_error(channel_id, "No chat permission");
+                return;
+            }
+            // Handle chat...
+        }
+        ClientMessage::UpdateRole { target_id, new_role } => {
+            if !participant.role.can_admin() {
+                self.send_ws_error(channel_id, "No admin permission");
+                return;
+            }
+            // Update role...
+        }
+        _ => {}
+    }
+}
+```
+
 ### Node-based Identity
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -768,7 +937,133 @@ async fn admin_action(&mut self, request_body: String) -> Result<String, String>
 
 ---
 
+## Group Chat Patterns
+
+### Creating and Managing Groups
+```rust
+#[derive(Serialize, Deserialize)]
+pub struct GroupInfo {
+    id: String,
+    name: String,
+    participants: Vec<String>,
+    created_by: String,
+    created_at: String,
+}
+
+// Create a group and notify members
+#[http]
+async fn create_group(&mut self, group_name: String, members: Vec<String>) -> Result<String, String> {
+    let creator = self.my_node_id.clone()
+        .ok_or_else(|| "Node ID not initialized".to_string())?;
+    
+    // Validate inputs
+    if group_name.trim().is_empty() {
+        return Err("Group name cannot be empty".to_string());
+    }
+    
+    // Ensure creator is included
+    let mut participants = members;
+    if !participants.contains(&creator) {
+        participants.push(creator.clone());
+    }
+    
+    if participants.len() < 2 {
+        return Err("Group must have at least 2 participants".to_string());
+    }
+    
+    // Create group
+    let group = GroupInfo {
+        id: format!("group_{}", uuid::Uuid::new_v4()),
+        name: group_name.clone(),
+        participants: participants.clone(),
+        created_by: creator.clone(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    
+    // Store locally
+    self.groups.insert(group.id.clone(), group.clone());
+    
+    // Notify all members via P2P
+    let process_id = "myapp:myapp:publisher.os".parse::<ProcessId>()?;
+    
+    for member in &participants {
+        if member != &creator {
+            let target = Address::new(member.clone(), process_id.clone());
+            let wrapper = json!({
+                "JoinGroup": serde_json::to_string(&group).unwrap()
+            });
+            
+            let _ = Request::new()
+                .target(target)
+                .body(serde_json::to_vec(&wrapper).unwrap())
+                .expects_response(5)
+                .send(); // Fire and forget
+        }
+    }
+    
+    Ok(group.id)
+}
+
+// Receive group join notification
+#[remote]
+async fn join_group(&mut self, group_json: String) -> Result<String, String> {
+    let group: GroupInfo = serde_json::from_str(&group_json)?;
+    self.groups.insert(group.id.clone(), group);
+    Ok("Joined".to_string())
+}
+```
+
+### Message Reply Pattern
+```rust
+#[derive(Serialize, Deserialize)]
+pub struct MessageReplyInfo {
+    message_id: String,
+    sender: String,
+    preview: String, // First 100 chars of original message
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct Message {
+    id: String,
+    sender: String,
+    content: String,
+    timestamp: String,
+    reply_to: Option<MessageReplyInfo>,
+}
+
+// Send message with optional reply
+#[http]
+async fn send_message(&mut self, recipient: String, content: String, reply_to_id: Option<String>) -> Result<String, String> {
+    let reply_info = if let Some(reply_id) = reply_to_id {
+        // Find the message being replied to
+        self.messages.get(&reply_id)
+            .map(|msg| MessageReplyInfo {
+                message_id: msg.id.clone(),
+                sender: msg.sender.clone(),
+                preview: msg.content.chars().take(100).collect(),
+            })
+    } else {
+        None
+    };
+    
+    let message = Message {
+        id: uuid::Uuid::new_v4().to_string(),
+        sender: self.my_node_id.clone().unwrap(),
+        content,
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        reply_to: reply_info,
+    };
+    
+    // Send to recipient...
+    Ok(message.id)
+}
+```
+
+---
+
 ## Timer Patterns
+
+**⚠️ IMPORTANT**: Timer patterns require the `"timer:distro:sys"` capability in your manifest.json!
 
 ### Basic One-Time Timer
 

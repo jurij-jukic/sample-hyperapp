@@ -26,9 +26,7 @@ This file tells Hyperware:
     "request_networking": true,
     "request_capabilities": [
       "homepage:homepage:sys",
-      "http-client:distro:sys",
-      "http-server:distro:sys",
-      "vfs:distro:sys"
+      "http-server:distro:sys"
     ],
     "grant_capabilities": [],
     "public": true
@@ -43,7 +41,7 @@ This file tells Hyperware:
 | `process_name` | string | Must match your metadata.json package name | `"skeleton-app"` |
 | `process_wasm_path` | string | Path to compiled WASM file | `"/skeleton-app.wasm"` |
 | `on_exit` | string | What happens if process crashes | `"Restart"` or `"None"` |
-| `request_networking` | bool | Can make network requests | `true` or `false` |
+| `request_networking` | bool | Enables P2P messaging via Request API | `true` or `false` |
 | `request_capabilities` | array | System features needed | See capabilities section |
 | `grant_capabilities` | array | Capabilities given to others | Usually `[]` |
 | `public` | bool | Can other processes message this one | `true` or `false` |
@@ -89,6 +87,27 @@ While it's auto-generated, you may need to modify it for:
 - Different crash behavior
 - Security settings
 
+### Example: Real-time Voice/WebSocket App
+```json
+[
+  {
+    "process_name": "voice-chat",
+    "process_wasm_path": "/voice-chat.wasm",
+    "on_exit": "Restart",
+    "request_networking": true,
+    "request_capabilities": [
+      "homepage:homepage:sys",
+      "http-server:distro:sys",  // Includes WebSocket support!
+      "vfs:distro:sys"           // For storing settings/history
+    ],
+    "grant_capabilities": [],
+    "public": false  // More secure for voice apps
+  }
+]
+```
+
+**Note**: WebSocket support comes with `http-server:distro:sys` - no separate capability needed! WebRTC, audio capture, and other browser APIs don't require special Hyperware capabilities.
+
 ### Example: Adding Ethereum Support
 ```json
 [
@@ -133,6 +152,31 @@ While it's auto-generated, you may need to modify it for:
 ]
 ```
 
+### Example: P2P Chat Application
+```json
+[
+  {
+    "process_name": "p2p-chat",
+    "process_wasm_path": "/p2p-chat.wasm",
+    "on_exit": "Restart",
+    "request_networking": true,
+    "request_capabilities": [
+      "homepage:homepage:sys",
+      "http-client:distro:sys",    // Essential for P2P - make requests to other nodes
+      "http-server:distro:sys",     // Serve UI and receive messages
+      "vfs:distro:sys"              // Store chat history and files
+    ],
+    "grant_capabilities": [],       // Usually empty for apps
+    "public": false                 // Privacy-focused: only known nodes can message directly
+  }
+]
+```
+
+**P2P Chat Requirements:**
+- **http-client:distro:sys** - CRITICAL for P2P apps to send messages to other nodes
+- **vfs:distro:sys** - Store message history, user preferences, and file attachments
+- **public: false** - Consider for privacy-focused chat apps (HTTP endpoints still work!)
+
 ## Process Identity
 
 Your process is identified by three parts:
@@ -165,13 +209,38 @@ This identity is used:
 
 ### public: true
 - Any process can send messages to your app
-- Required for P2P features
+- Required for P2P features where unknown nodes connect
 - Default for most apps
+- Use when building open collaborative apps
 
 ### public: false
 - Only processes with explicit permission can message you
 - More secure but limits functionality
-- Use for system utilities
+- Use for:
+  - Voice/video chat apps (privacy)
+  - Financial applications
+  - System utilities
+  - Apps handling sensitive data
+- Note: HTTP/WebSocket endpoints still work! Only affects process-to-process messaging
+
+## Grant Capabilities Pattern
+
+Some applications grant capabilities to other processes. This is less common but can be useful:
+
+```json
+"grant_capabilities": [
+  "homepage:homepage:sys",
+  "http-client:distro:sys", 
+  "terminal:terminal:sys"
+]
+```
+
+**When to grant capabilities:**
+- System utilities that manage other processes
+- Development tools that need broad access
+- Apps that act as capability proxies
+
+**Security Note**: Be very selective about granting capabilities. Most apps should have an empty `grant_capabilities` array.
 
 ## Common Issues
 
@@ -210,6 +279,27 @@ Missing homepage capability:
   "homepage:homepage:sys"  // Required for add_to_homepage()
 ]
 ```
+
+## WebSocket Configuration
+
+While WebSocket support is included with `http-server:distro:sys`, you need to declare WebSocket endpoints in your hyperprocess macro:
+
+```rust
+#[hyperprocess(
+    endpoints = vec![
+        Binding::Http { 
+            path: "/api", 
+            config: HttpBindingConfig::new(false, false, false, None) 
+        },
+        Binding::WebSocket {  // Add this for WebSocket support
+            path: "/ws",
+            config: HttpBindingConfig::new(false, false, false, None)
+        }
+    ],
+)]
+```
+
+This is configured in your Rust code, not manifest.json!
 
 ## Build & Deploy Flow
 
