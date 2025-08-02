@@ -2,7 +2,38 @@
 
 A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework.
 This skeleton provides a starting point for building Hyperware applications with a React/TypeScript frontend and Rust backend.
+
 Either prompt your favorite LLM directly with instructions on how to build your app or add them to `instructions.txt`!
+
+Recommended usage:
+- Clone this repo & clean up git-related stuff:
+  ```bash
+  git clone https://github.com/humanizersequel/hyperapp-skeleton.git
+  cd hyperapp-skeleton
+  rm -rf .git
+  ```
+- Write a detailed document describing what you want your app to do.
+  Save this in `instructions.txt`.
+- Prompt your LLM agent (i.e. Claude Code) with something like:
+  ```
+  ## GOAL
+
+  <One-sentence description of app here>
+
+  ## Instructions
+
+  Read the README.md and follow the Instructions > Create an implementation plan
+  ```
+- After creating an implementation plan, clear your LLM agent's context and then prompt it again with something like:
+  ```
+  ## GOAL
+
+  <One-sentence description of app here>
+
+  ## Instructions
+
+  Read the README.md and follow the Instructions > Implement the plan
+  ```
 
 The rest of this document is aimed at *LLMs* not *humans*.
 
