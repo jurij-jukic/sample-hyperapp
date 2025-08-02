@@ -49,7 +49,7 @@ hyperapp-skeleton/
 │       ├── types/         # TypeScript type definitions
 │       └── utils/         # API utilities
 ├── api/                   # Generated WIT files (after build)
-└── pkg/                   # Built package output
+└── pkg/                   # The final build product, including manifest.json, scripts.json and built package output
 ```
 
 ## Key Concepts
@@ -65,10 +65,10 @@ The `#[hyperprocess]` macro is the core of the Hyperapp framework. It provides:
 ### 2. Required Patterns
 
 #### HTTP Endpoints
-ALL HTTP endpoints MUST accept a `_request_body: String` parameter:
+ALL HTTP endpoints MUST be tagged with `#[http]`:
 ```rust
 #[http]
-async fn my_endpoint(&self, _request_body: String) -> String {
+async fn my_endpoint(&self) -> String {
     // Implementation
 }
 ```
@@ -79,7 +79,7 @@ Parameters must be sent as tuples for multi-parameter methods:
 // Single parameter
 { "MethodName": value }
 
-// Multiple parameters  
+// Multiple parameters
 { "MethodName": [param1, param2] }
 ```
 
@@ -92,9 +92,11 @@ MUST be included in index.html:
 ### 3. State Persistence
 
 Your app's state is automatically persisted based on the `save_config` option:
-- `EveryMessage`: Save after each message (safest)
-- `OnInterval(n)`: Save every n seconds
 - `Never`: No automatic saves
+- `EveryMessage`: Save after each message (safest; slowest)
+- `EveeyNMessage(u64)`: Save every N messages received
+- `EveeyNSeconds(u64)`: Save every N seconds
+- `OnDiff`: Save when state changes (recommended)
 
 ## Customization Guide
 
@@ -121,7 +123,7 @@ async fn my_method(&mut self, request_body: String) -> Result<String, String> {
 
 ### 3. Add Capabilities
 
-Add system permissions in `manifest.json`:
+Add system permissions in `pkg/manifest.json`:
 ```json
 "request_capabilities": [
     "homepage:homepage:sys",
@@ -129,6 +131,10 @@ Add system permissions in `manifest.json`:
     "vfs:distro:sys"  // Add as needed
 ]
 ```
+
+These are required to message other local processes.
+They can also be granted so other local processes can message us.
+There is also a `request_networking` field that must be true to send messages over the network p2p.
 
 ### 4. Update Frontend
 
@@ -140,7 +146,6 @@ Add system permissions in `manifest.json`:
 ## Common Issues and Solutions
 
 ### "Failed to deserialize HTTP request"
-- Ensure all HTTP methods have `_request_body` parameter
 - Check parameter format (tuple vs object)
 
 ### "Node not connected"
