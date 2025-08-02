@@ -1,17 +1,10 @@
 # Hyperware Skeleton App
 
-A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework. This skeleton provides a starting point for building Hyperware applications with a React/TypeScript frontend and Rust backend.
+A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework.
+This skeleton provides a starting point for building Hyperware applications with a React/TypeScript frontend and Rust backend.
+Either prompt your favorite LLM directly with instructions on how to build your app or add them to `instructions.txt`!
 
-## Features
-
-- ✅ Minimal working Hyperware app structure
-- ✅ Well-commented code explaining key concepts
-- ✅ Basic state management with counter example
-- ✅ HTTP endpoints demonstration
-- ✅ React/TypeScript UI with Zustand state management
-- ✅ Error handling and loading states
-- ✅ Automatic WIT generation via hyperprocess macro
-- ✅ Persistent state across app restarts
+The rest of this document is aimed at *LLMs* not *humans*.
 
 ## Quick Start
 
@@ -23,33 +16,33 @@ A minimal, well-commented skeleton application for the Hyperware platform using 
 
 ### Building
 
-   ```bash
-   kit b --hyperapp
-   ```
-
+Always build with
+```bash
+kit build --hyperapp
+```
 
 ## Project Structure
 
 ```
 hyperapp-skeleton/
-├── Cargo.toml              # Workspace configuration
-├── metadata.json           # App metadata
-├── skeleton-app/           # Main Rust process
-│   ├── Cargo.toml         # Process dependencies
+├── Cargo.toml          # Workspace configuration
+├── metadata.json       # App metadata
+├── skeleton-app/       # Main Rust process
+│   ├── Cargo.toml      # Process dependencies
 │   └── src/
-│       ├── lib.rs         # Main app logic (well-commented)
-│       └── icon           # App icon file
-├── ui/                    # Frontend application
-│   ├── package.json       # Node dependencies
-│   ├── index.html         # Entry point (includes /our.js)
-│   ├── vite.config.ts     # Build configuration
+│       ├── lib.rs      # Main app logic (well-commented)
+│       └── icon        # App icon file
+├── ui/                 # Frontend application
+│   ├── package.json    # Node dependencies
+│   ├── index.html      # Entry point (includes /our.js)
+│   ├── vite.config.ts  # Build configuration
 │   └── src/
-│       ├── App.tsx        # Main React component
-│       ├── store/         # Zustand state management
-│       ├── types/         # TypeScript type definitions
-│       └── utils/         # API utilities
-├── api/                   # Generated WIT files (after build)
-└── pkg/                   # The final build product, including manifest.json, scripts.json and built package output
+│       ├── App.tsx     # Main React component
+│       ├── store/      # Zustand state management
+│       ├── types/      # TypeScript type definitions
+│       └── utils/      # API utilities
+├── api/                # Generated WIT files (after build)
+└── pkg/                # The final build product, including manifest.json, scripts.json and built package output
 ```
 
 ## Key Concepts
@@ -92,11 +85,11 @@ MUST be included in index.html:
 ### 3. State Persistence
 
 Your app's state is automatically persisted based on the `save_config` option:
+- `OnDiff`: Save when state changes (recommended)
 - `Never`: No automatic saves
 - `EveryMessage`: Save after each message (safest; slowest)
 - `EveeyNMessage(u64)`: Save every N messages received
 - `EveeyNSeconds(u64)`: Save every N seconds
-- `OnDiff`: Save when state changes (recommended)
 
 ## Customization Guide
 
@@ -143,6 +136,10 @@ There is also a `request_networking` field that must be true to send messages ov
 3. Update store in `ui/src/store/skeleton.ts`
 4. Modify UI in `ui/src/App.tsx`
 
+### 5. Rename as appropriate
+
+Change names throughout from `skeleton-app` (and variants) as appropriate if user describes app name.
+
 ## Common Issues and Solutions
 
 ### "Failed to deserialize HTTP request"
@@ -164,31 +161,51 @@ There is also a `request_networking` field that must be true to send messages ov
 
 ## Testing Your App
 
-1. Run a Hyperware node:
+1. Deploy app to a Hyperware node (after building, if requested):
    ```bash
-   kit s
+   kit start-packages
    ```
-
 2. Your app will be automatically installed and available at `http://localhost:8080`
 3. Check the Hyperware homepage for your app icon
 
-## Next Steps
+## Instructions
 
-1. **Study the Code**: Read through the well-commented `lib.rs` file
-2. **Experiment**: Try modifying the counter logic or adding new endpoints
-3. **Build Features**: Add your own functionality following the patterns
-4. **Add Capabilities**: Request system permissions as needed for your features
+### Create an implementation plan
 
-## Resources
+Carefully read the prompt; look carefully at `instructions.txt` (if it exists) and in the resources/ directory.
+In particular, note the example applications `resources/example-apps/sign/`, `resources/example-apps/id/`, and `resources/example-apps/file-explorer`.
+`sign` and `id` demonstrate local messaging.
+`file-explorer` demonstrates VFS interactions.
 
-- **Development Guides**: See `resources/guides/` for comprehensive documentation
-  - [Manifest & Deployment](resources/guides/08-MANIFEST-AND-DEPLOYMENT.md) - Understanding manifest.json
-  - [Capabilities Guide](resources/guides/09-CAPABILITIES-GUIDE.md) - System permissions reference
-  - [Complete Guide Index](resources/guides/README.md) - All available guides
-- **Example Apps**: Check the `example-apps` folder for working implementations
-- **Hyperware Documentation**: [Coming Soon]
-- **Community**: [Coming Soon]
+Expand the prompt and/or `instructions.txt` into a detailed implementation plan.
+The implementor will be starting from this existing template that exists at `skeleton-app/` and `ui/`.
 
-## License
+Note in particular that bindings for the UI will be generated when the app is built with `kit build --hyperapp`.
+As such, first design and implement the backend; the interface will be generated from the backend; finally design and implement the frontend to consume the interface.
+Subsequent changes to the interface must follow this pattern as well: start in backend, generate interface, finish in frontend
 
-[Your License Here]
+Do NOT create the API.
+The API is machine generated.
+You create types that end up in the API by defining and using them in functions in the Rust backend "hyperapp"
+
+Do NOT write code: just create a detailed `IMPLEMENTATION_PLAN.md` that will be used by the implementor.
+The implementor will have access to `resources/` but will be working from `IMPLEMENTATION_PLAN.md`, so include all relevant context in the PLAN.
+You can refer the implementor to `resources/` but do not assume the implementor has read them unless you refer them there.
+
+### Implement the plan
+
+Look carefully at `IMPLEMENTATION_PLAN.md` and in the `resources/` directory, if relevant.
+In particular, note the example applications `resources/example-apps/sign/`, `resources/example-apps/id/`, and `resources/example-apps/file-explorer`.
+Use them if useful.
+
+Work from the existing template that exists at `skeleton-app/` and `ui/`.
+
+Note in particular that bindings for the UI will be generated when the app is built with `kit build --hyperapp`.
+As such, first design and implement the backend; the interface will be generated from the backend; finally design and implement the frontend to consume the interface.
+Subsequent changes to the interface must follow this pattern as well: start in backend, generate interface, finish in frontend
+
+Do NOT create the API.
+The API is machine generated.
+You create types that end up in the API by defining and using them in functions in the Rust backend "hyperapp"
+
+Implement the application described in the `IMPLEMENTATION_PLAN.md`.
