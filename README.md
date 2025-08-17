@@ -3,7 +3,7 @@
 A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework.
 This skeleton provides a starting point for building Hyperware applications with a React/TypeScript frontend and Rust backend.
 
-Either prompt your favorite LLM directly with instructions on how to build your app or add them to `instructions.txt`!
+Either prompt your favorite LLM directly with instructions on how to build your app or add them to `instructions.md`!
 
 Recommended usage:
 - Clone this repo & clean up git-related stuff:
@@ -13,7 +13,7 @@ Recommended usage:
   rm -rf .git
   ```
 - Write a detailed document describing what you want your app to do.
-  Save this in `instructions.txt`.
+  Save this in `instructions.md`.
 - Prompt your LLM agent (i.e. Claude Code) with something like:
   ```
   ## GOAL
@@ -203,12 +203,12 @@ Change names throughout from `skeleton-app` (and variants) as appropriate if use
 
 ### Create an implementation plan
 
-Carefully read the prompt; look carefully at `instructions.txt` (if it exists) and in the resources/ directory.
+Carefully read the prompt; look carefully at `instructions.md` (if it exists) and in the resources/ directory.
 In particular, note the example applications `resources/example-apps/sign/`, `resources/example-apps/id/`, and `resources/example-apps/file-explorer`.
 `sign` and `id` demonstrate local messaging.
 `file-explorer` demonstrates VFS interactions.
 
-Expand the prompt and/or `instructions.txt` into a detailed implementation plan.
+Expand the prompt and/or `instructions.md` into a detailed implementation plan.
 The implementor will be starting from this existing template that exists at `skeleton-app/` and `ui/`.
 
 Note in particular that bindings for the UI will be generated when the app is built with `kit build --hyperapp`.
