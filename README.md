@@ -24,7 +24,9 @@ Recommended usage:
 
   Read the README.md and follow the Instructions > Create an implementation plan
   ```
+
 - After creating an implementation plan, clear your LLM agent's context and then prompt it again with something like:
+
   ```
   ## GOAL
 
