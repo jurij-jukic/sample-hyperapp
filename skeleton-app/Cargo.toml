@@ -12,6 +12,7 @@ package = "hyperware:process"
 [dependencies]
 # Core dependencies for Hyperware apps
 anyhow = "1.0"
+hyperware_process_lib = { git = "https://github.com/hyperware-ai/process_lib", features = ["hyperapp"], rev = "d67b65e" }
 process_macros = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -20,12 +21,7 @@ wit-bindgen = "0.42.1"
 # IMPORTANT: hyperprocess_macro provides async support and WIT generation
 [dependencies.hyperprocess_macro]
 git = "https://github.com/hyperware-ai/hyperprocess-macro"
-rev = "f1cd5bb"
-
-# Common utilities for Hyperware apps
-[dependencies.hyperware_app_common]
-git = "https://github.com/hyperware-ai/hyperprocess-macro"
-rev = "f1cd5bb"
+rev = "66884c0"
 
 # Optional dependencies you might need:
 # uuid = { version = "1.4.1", features = ["v4", "serde"] }

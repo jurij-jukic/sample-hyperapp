@@ -6,6 +6,5 @@ panic = "abort"
 [workspace]
 members = [
     "skeleton-app",
-    "target/caller-utils",
 ]
 resolver = "2"

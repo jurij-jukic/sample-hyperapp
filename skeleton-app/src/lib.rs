@@ -8,7 +8,7 @@
 // - Automatic WIT (WebAssembly Interface Types) generation
 // - State persistence
 // - HTTP/WebSocket bindings
-use hyperprocess_macro::*;
+use hyperprocess_macro::hyperprocess;
 
 // HYPERWARE PROCESS LIB IMPORTS
 // These are provided by the hyperprocess_macro, DO NOT add hyperware_process_lib to Cargo.toml
@@ -36,24 +36,24 @@ pub struct AppState {
 #[hyperprocess(
     // App name shown in the UI and logs
     name = "Skeleton App",
-    
+
     // Enable UI serving at root path
     ui = Some(HttpBindingConfig::default()),
-    
+
     // HTTP API endpoints - MUST include /api for frontend communication
     endpoints = vec![
-        Binding::Http { 
-            path: "/api", 
-            config: HttpBindingConfig::new(false, false, false, None) 
+        Binding::Http {
+            path: "/api",
+            config: HttpBindingConfig::new(false, false, false, None)
         }
     ],
-    
+
     // State persistence options:
     // - EveryMessage: Save after each message (safest, slower)
     // - OnInterval(n): Save every n seconds
     // - Never: No automatic saves (manual only)
     save_config = SaveOptions::EveryMessage,
-    
+
     // WIT world name - must match package naming convention
     wit_world = "skeleton-app-dot-os-v0"
 )]
@@ -69,16 +69,16 @@ impl AppState {
         // Add your app to the Hyperware homepage
         // Parameters: name, icon (emoji), path, widget
         add_to_homepage("Skeleton App", Some("🦴"), Some("/"), None);
-        
+
         // Initialize your app state
         self.counter = 0;
         self.messages.push("App initialized!".to_string());
-        
+
         // Get our node identity (useful for P2P apps)
         let our_node = our().node.clone();
         println!("Skeleton app initialized on node: {}", our_node);
     }
-    
+
     // HTTP ENDPOINT EXAMPLE
     // CRITICAL: ALL HTTP endpoints MUST accept _request_body parameter
     // even if they don't use it. This is a framework requirement.
@@ -91,7 +91,7 @@ impl AppState {
             "node": our().node
         }).to_string()
     }
-    
+
     // HTTP ENDPOINT WITH PARAMETERS
     // Frontend sends parameters as either:
     // - Single value: { "MethodName": value }
@@ -103,20 +103,20 @@ impl AppState {
             Ok(val) => val,
             Err(_) => 1, // Default increment
         };
-        
+
         self.counter += amount;
         self.messages.push(format!("Counter incremented by {}", amount));
-        
+
         Ok(self.counter)
     }
-    
+
     // HTTP ENDPOINT RETURNING COMPLEX DATA
     // For complex types, return as JSON string to avoid WIT limitations
     #[http]
     async fn get_messages(&self, _request_body: String) -> String {
         serde_json::to_string(&self.messages).unwrap_or_else(|_| "[]".to_string())
     }
-    
+
 }
 
 
@@ -125,12 +125,12 @@ impl AppState {
 // Supported types:
 // ✅ Primitives: bool, u8-u64, i8-i64, f32, f64, String
 // ✅ Vec<T> where T is supported
-// ✅ Option<T> where T is supported  
+// ✅ Option<T> where T is supported
 // ✅ Simple structs with public fields
 // ❌ HashMap - use Vec<(K,V)> instead
 // ❌ Fixed arrays [T; N] - use Vec<T>
 // ❌ Complex enums with data
-// 
+//
 // Workaround: Return complex data as JSON strings
 
 // COMMON PATTERNS:
