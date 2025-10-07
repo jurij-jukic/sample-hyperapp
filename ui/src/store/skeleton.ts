@@ -1,101 +1,193 @@
-// Zustand store for Skeleton App state management
 import { create } from 'zustand';
-import type { SkeletonState } from '../types/skeleton';
+import {
+  CounterSnapshot,
+  get_counters as getCounters,
+  ping_http as pingHttp,
+  send_message as sendMessageApi,
+} from '../types/api';
 import { getNodeId } from '../types/global';
-import * as api from '../utils/api';
+import { getErrorMessage } from '../utils/api';
 
-interface SkeletonStore extends SkeletonState {
-  // Actions
-  initialize: () => void;
-  fetchStatus: () => Promise<void>;
-  incrementCounter: (amount?: number) => Promise<void>;
-  fetchMessages: () => Promise<void>;
-  setError: (error: string | null) => void;
+type SendMode = 'local' | 'remote' | 'remote-mismatch';
+
+interface SampleState {
+  nodeId: string | null;
+  isConnected: boolean;
+  counters: CounterSnapshot | null;
+  httpMessage: string;
+  processMessage: string;
+  sendMode: SendMode;
+  remoteNode: string;
+  mismatchNode: string;
+  mismatchMessage: string;
+  isSubmitting: boolean;
+  isMismatchSubmitting: boolean;
+  isLoading: boolean;
+  error: string | null;
+  initialize: () => Promise<void>;
+  refresh: () => Promise<void>;
+  setHttpMessage: (value: string) => void;
+  setProcessMessage: (value: string) => void;
+  setSendMode: (mode: SendMode) => void;
+  setRemoteNode: (value: string) => void;
+  setMismatchNode: (value: string) => void;
+  setMismatchMessage: (value: string) => void;
+  sendHttpPing: () => Promise<void>;
+  sendProcessMessage: () => Promise<void>;
+  triggerMismatch: () => Promise<void>;
   clearError: () => void;
 }
 
-// Create the Zustand store
-export const useSkeletonStore = create<SkeletonStore>((set, get) => ({
-  // Initial state
-  nodeId: null,
-  isConnected: false,
-  counter: 0,
-  messages: [],
+const EMPTY_PAYLOAD = JSON.stringify('');
+
+export const useSampleStore = create<SampleState>((set, get) => ({
+  nodeId: getNodeId(),
+  isConnected: Boolean(getNodeId()),
+  counters: null,
+  httpMessage: '',
+  processMessage: '',
+  sendMode: 'local',
+  remoteNode: '',
+  mismatchNode: '',
+  mismatchMessage: '',
+  isSubmitting: false,
+  isMismatchSubmitting: false,
   isLoading: false,
   error: null,
 
-  // Initialize the store and check connection
-  initialize: () => {
+  initialize: async () => {
     const nodeId = getNodeId();
-    set({
-      nodeId,
-      isConnected: nodeId !== null,
-    });
-    
-    // Fetch initial status if connected
-    if (nodeId) {
-      get().fetchStatus();
+    set({ nodeId, isConnected: Boolean(nodeId) });
+    if (!nodeId) {
+      set({ error: 'Not connected to a Hyperware node.' });
+      return;
     }
+    await get().refresh();
   },
 
-  // Fetch current status from backend
-  fetchStatus: async () => {
+  refresh: async () => {
     set({ isLoading: true, error: null });
     try {
-      const status = await api.getStatus();
-      set({
-        counter: status.counter,
-        isLoading: false,
-      });
-      
-      // Also fetch messages
-      await get().fetchMessages();
+      const snapshot = await getCounters(EMPTY_PAYLOAD);
+      set({ counters: snapshot, isLoading: false });
     } catch (error) {
-      set({
-        error: api.getErrorMessage(error),
-        isLoading: false,
-      });
+      set({ error: getErrorMessage(error), isLoading: false });
     }
   },
 
-  // Increment the counter
-  incrementCounter: async (amount = 1) => {
-    set({ isLoading: true, error: null });
+  setHttpMessage: (value) => set({ httpMessage: value }),
+  setProcessMessage: (value) => set({ processMessage: value }),
+  setSendMode: (mode) => set({ sendMode: mode }),
+  setRemoteNode: (value) => set({ remoteNode: value }),
+  setMismatchNode: (value) => set({ mismatchNode: value }),
+  setMismatchMessage: (value) => set({ mismatchMessage: value }),
+
+  sendHttpPing: async () => {
+    const state = get();
+    const message = state.httpMessage.trim();
+    if (!message) {
+      set({ error: 'Enter a message before sending a ping.' });
+      return;
+    }
+
+    set({ isSubmitting: true, error: null });
     try {
-      const newCounter = await api.incrementCounter(amount);
-      set({
-        counter: newCounter,
-        isLoading: false,
-      });
+      const snapshot = await pingHttp(JSON.stringify({ message }));
+      set({ counters: snapshot, httpMessage: '', isSubmitting: false });
     } catch (error) {
-      set({
-        error: api.getErrorMessage(error),
-        isLoading: false,
-      });
+      set({ error: getErrorMessage(error), isSubmitting: false });
     }
   },
 
-  // Fetch all messages
-  fetchMessages: async () => {
+  sendProcessMessage: async () => {
+    const state = get();
+    const message = state.processMessage.trim();
+    if (!message) {
+      set({ error: 'Enter a message before sending.' });
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      mode: state.sendMode,
+      message,
+    };
+
+    if (state.sendMode === 'remote') {
+      const target = state.remoteNode.trim();
+      if (target.length === 0) {
+        set({ error: 'Specify a remote node before sending.' });
+        return;
+      }
+      payload.target_node = target;
+    }
+
+    set({ isSubmitting: true, error: null });
     try {
-      const messages = await api.getMessages();
-      set({ messages });
+      await sendMessageApi(JSON.stringify(payload));
+      set({ processMessage: '', isSubmitting: false });
+      await get().refresh();
     } catch (error) {
-      console.error('Failed to fetch messages:', error);
-      // Don't set error state for this, as it's a secondary operation
+      set({ error: getErrorMessage(error), isSubmitting: false });
     }
   },
 
+  triggerMismatch: async () => {
+    const state = get();
+    const target = state.mismatchNode.trim();
+    const message = state.mismatchMessage.trim();
 
-  // Error management
-  setError: (error) => set({ error }),
+    if (!target) {
+      set({ error: 'Enter the remote node to target.' });
+      return;
+    }
+
+    if (!message) {
+      set({ error: 'Enter a message before triggering the mismatch.' });
+      return;
+    }
+
+    set({ isMismatchSubmitting: true, error: null });
+    try {
+      await sendMessageApi(
+        JSON.stringify({
+          mode: 'remote-mismatch',
+          message,
+          target_node: target,
+        }),
+      );
+      set({ mismatchMessage: '', isMismatchSubmitting: false });
+    } catch (error) {
+      set({ error: getErrorMessage(error), isMismatchSubmitting: false });
+    }
+  },
+
   clearError: () => set({ error: null }),
 }));
 
-// Selector hooks for common use cases
-export const useNodeId = () => useSkeletonStore((state) => state.nodeId);
-export const useIsConnected = () => useSkeletonStore((state) => state.isConnected);
-export const useCounter = () => useSkeletonStore((state) => state.counter);
-export const useMessages = () => useSkeletonStore((state) => state.messages);
-export const useIsLoading = () => useSkeletonStore((state) => state.isLoading);
-export const useError = () => useSkeletonStore((state) => state.error);
+export const useSampleSelectors = {
+  nodeId: () => useSampleStore((state) => state.nodeId),
+  isConnected: () => useSampleStore((state) => state.isConnected),
+  counters: () => useSampleStore((state) => state.counters),
+  httpMessage: () => useSampleStore((state) => state.httpMessage),
+  processMessage: () => useSampleStore((state) => state.processMessage),
+  sendMode: () => useSampleStore((state) => state.sendMode),
+  remoteNode: () => useSampleStore((state) => state.remoteNode),
+  mismatchNode: () => useSampleStore((state) => state.mismatchNode),
+  mismatchMessage: () => useSampleStore((state) => state.mismatchMessage),
+  isSubmitting: () => useSampleStore((state) => state.isSubmitting),
+  isMismatchSubmitting: () => useSampleStore((state) => state.isMismatchSubmitting),
+  isLoading: () => useSampleStore((state) => state.isLoading),
+  error: () => useSampleStore((state) => state.error),
+  initialize: () => useSampleStore((state) => state.initialize),
+  refresh: () => useSampleStore((state) => state.refresh),
+  setHttpMessage: () => useSampleStore((state) => state.setHttpMessage),
+  setProcessMessage: () => useSampleStore((state) => state.setProcessMessage),
+  setSendMode: () => useSampleStore((state) => state.setSendMode),
+  setRemoteNode: () => useSampleStore((state) => state.setRemoteNode),
+  setMismatchNode: () => useSampleStore((state) => state.setMismatchNode),
+  setMismatchMessage: () => useSampleStore((state) => state.setMismatchMessage),
+  sendHttpPing: () => useSampleStore((state) => state.sendHttpPing),
+  sendProcessMessage: () => useSampleStore((state) => state.sendProcessMessage),
+  triggerMismatch: () => useSampleStore((state) => state.triggerMismatch),
+  clearError: () => useSampleStore((state) => state.clearError),
+};

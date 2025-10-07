@@ -1,7 +1,12 @@
-# Hyperware Skeleton App
+# Sample Hyperapp
 
-A minimal, well-commented skeleton application for the Hyperware platform using the Hyperapp framework.
-This skeleton provides a starting point for building Hyperware applications with a React/TypeScript frontend and Rust backend.
+This sample demonstrates three kinds of Hyperware handlers working together:
+
+- a `#[http]` ping endpoint used by a tiny UI
+- a `#[local]` ping endpoint that can be exercised from the same node
+- a `#[remote]` ping endpoint for cross-node messaging
+
+Each ping increments its own counter and logs the message to the backend console. The UI polls the counters so you can see activity from HTTP, local, and remote calls in one place.
 
 Either prompt your favorite LLM directly with instructions on how to build your app or add them to `instructions.md`!
 
@@ -40,6 +45,26 @@ Recommended usage:
 The rest of this document is aimed at *LLMs* not *humans*.
 
 ## Quick Start
+
+### Demo Pings
+
+1. Build the project with `kit build --hyperapp`.
+2. In the UI choose "HTTP Ping" for the direct handler, or switch the "Process Message" section between local and remote to exercise the `#[local]`/`#[remote]` endpoints.
+2. Launch the UI (`npm install` then `npm run dev` inside `ui/`) and send HTTP pings from the text box.
+3. In another terminal, use `kit inject-message` to exercise the local and remote handlers.
+
+Example commands (replace `<your-node>` and `<target-node>` as appropriate):
+
+```bash
+# Local ping against the running process
+kit inject-message sample-hyperapp:sample-hyperapp:<your-node>.os '{"PingLocal": "Hello from local"}'
+
+# Remote ping from another node targeting <target-node>
+kit inject-message sample-hyperapp:sample-hyperapp:<target-node>.os '{"PingRemote": "Hello from remote"}'
+```
+
+These commands follow the same shape as the send helper in the `my-chat-app` template: JSON payloads keyed by the handler name. Each handler returns the latest counter snapshot so you can confirm the increments right in the terminal.
+
 
 ### Prerequisites
 

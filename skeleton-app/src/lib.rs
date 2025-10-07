@@ -1,178 +1,237 @@
-// HYPERWARE SKELETON APP
-// This is a minimal, well-commented skeleton app for the Hyperware platform
-// using the Hyperapp framework (macro-driven approach).
-
-// CRITICAL IMPORTS - DO NOT MODIFY THESE
-// The hyperprocess_macro provides everything you need including:
-// - Async/await support (custom runtime)
-// - Automatic WIT (WebAssembly Interface Types) generation
-// - State persistence
-// - HTTP/WebSocket bindings
 use hyperprocess_macro::hyperprocess;
 
-// HYPERWARE PROCESS LIB IMPORTS
-// These are provided by the hyperprocess_macro, DO NOT add hyperware_process_lib to Cargo.toml
-use hyperware_process_lib::{
-    our,                    // Gets current node/process identity
-    homepage::add_to_homepage,  // Adds app icon to Hyperware homepage
-};
+use hyperware_process_lib::homepage::add_to_homepage;
+use hyperware_process_lib::hyperapp::send;
+use hyperware_process_lib::{our, println, Address, ProcessId, Request};
 
-// Standard imports for serialization
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
-// STEP 1: DEFINE YOUR APP STATE
-// This struct holds all persistent data for your app
-// It MUST derive Default, Serialize, and Deserialize
-// Add PartialEq if you use this type in WIT interfaces
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct CounterSnapshot {
+    pub http_count: u64,
+    pub http_last_message: Option<String>,
+    pub local_count: u64,
+    pub local_last_message: Option<String>,
+    pub remote_count: u64,
+    pub remote_last_message: Option<String>,
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct AppState {
-    // Example fields - replace with your app's data
-    counter: u32,
-    messages: Vec<String>,
+    http_count: u64,
+    local_count: u64,
+    remote_count: u64,
+    http_last_message: Option<String>,
+    local_last_message: Option<String>,
+    remote_last_message: Option<String>,
 }
 
-// STEP 2: IMPLEMENT YOUR APP LOGIC
-// The #[hyperprocess] attribute goes HERE, before the impl block
-#[hyperprocess(
-    // App name shown in the UI and logs
-    name = "Skeleton App",
+#[derive(Deserialize)]
+struct PingPayload {
+    message: Option<String>,
+}
 
-    // Enable UI serving at root path
-    ui = Some(HttpBindingConfig::default()),
+#[derive(Deserialize)]
+#[serde(rename_all = "lowercase")]
+enum SendMode {
+    Local,
+    Remote,
+    #[serde(rename = "remote-mismatch")]
+    RemoteMismatch,
+}
 
-    // HTTP API endpoints - MUST include /api for frontend communication
-    endpoints = vec![
-        Binding::Http {
-            path: "/api",
-            config: HttpBindingConfig::new(false, false, false, None)
+#[derive(Deserialize)]
+struct SendMessagePayload {
+    mode: SendMode,
+    message: String,
+    target_node: Option<String>,
+}
+
+impl AppState {
+    fn snapshot(&self) -> CounterSnapshot {
+        CounterSnapshot {
+            http_count: self.http_count,
+            http_last_message: self.http_last_message.clone(),
+            local_count: self.local_count,
+            local_last_message: self.local_last_message.clone(),
+            remote_count: self.remote_count,
+            remote_last_message: self.remote_last_message.clone(),
         }
-    ],
+    }
 
-    // State persistence options:
-    // - EveryMessage: Save after each message (safest, slower)
-    // - OnInterval(n): Save every n seconds
-    // - Never: No automatic saves (manual only)
-    save_config = SaveOptions::EveryMessage,
+    fn record_http(&mut self, message: String) -> CounterSnapshot {
+        self.http_count += 1;
+        self.http_last_message = Some(message.clone());
+        println!(
+            "[HTTP] #{count} message: {message}",
+            count = self.http_count,
+            message = message
+        );
+        // hyperware_process_lib::hyperapp::set_response_status(hyperware_process_lib::http::StatusCode::OK);
+        self.snapshot()
+    }
 
-    // WIT world name - must match package naming convention
-    wit_world = "skeleton-app-dot-os-v0"
+    fn record_local(&mut self, message: String) -> CounterSnapshot {
+        self.local_count += 1;
+        self.local_last_message = Some(message.clone());
+        println!(
+            "[LOCAL] #{count} message: {message}",
+            count = self.local_count,
+            message = message
+        );
+        self.snapshot()
+    }
+
+    fn record_remote(&mut self, message: String) -> CounterSnapshot {
+        self.remote_count += 1;
+        self.remote_last_message = Some(message.clone());
+        println!(
+            "[REMOTE] #{count} message: {message}",
+            count = self.remote_count,
+            message = message
+        );
+        self.snapshot()
+    }
+}
+
+#[hyperprocess(
+    name = "Sample Hyperapp",
+    ui = Some(hyperware_process_lib::http::server::HttpBindingConfig::default()),
+    endpoints = vec![hyperware_process_lib::hyperapp::Binding::Http {
+        path: "/api",
+        config: hyperware_process_lib::http::server::HttpBindingConfig::new(false, false, false, None)
+    }],
+    save_config = hyperware_process_lib::hyperapp::SaveOptions::OnDiff,
+    wit_world = "sample-hyperapp-dot-os-v0"
 )]
 impl AppState {
-    // INITIALIZATION FUNCTION
-    // Runs once when your process starts
-    // Use this to:
-    // - Register with the homepage
-    // - Set up initial state
-    // - Connect to other system processes
     #[init]
     async fn initialize(&mut self) {
-        // Add your app to the Hyperware homepage
-        // Parameters: name, icon (emoji), path, widget
-        add_to_homepage("Skeleton App", Some("🦴"), Some("/"), None);
-
-        // Initialize your app state
-        self.counter = 0;
-        self.messages.push("App initialized!".to_string());
-
-        // Get our node identity (useful for P2P apps)
-        let our_node = our().node.clone();
-        println!("Skeleton app initialized on node: {}", our_node);
+        add_to_homepage("Sample Hyperapp", Some("📡"), Some("/"), None);
+        println!("Sample Hyperapp ready on node {node}", node = our().node);
     }
 
-    // HTTP ENDPOINT EXAMPLE
-    // CRITICAL: ALL HTTP endpoints MUST accept _request_body parameter
-    // even if they don't use it. This is a framework requirement.
     #[http]
-    async fn get_status(&self, _request_body: String) -> String {
-        // Return current app status as JSON
-        serde_json::json!({
-            "counter": self.counter,
-            "message_count": self.messages.len(),
-            "node": our().node
-        }).to_string()
+    async fn get_counters(&self, _request_body: String) -> CounterSnapshot {
+        self.snapshot()
     }
 
-    // HTTP ENDPOINT WITH PARAMETERS
-    // Frontend sends parameters as either:
-    // - Single value: { "MethodName": value }
-    // - Multiple values as tuple: { "MethodName": [val1, val2] }
     #[http]
-    async fn increment_counter(&mut self, request_body: String) -> Result<u32, String> {
-        // Parse the increment amount from request
-        let amount: u32 = match serde_json::from_str(&request_body) {
-            Ok(val) => val,
-            Err(_) => 1, // Default increment
+    async fn ping_http(&mut self, request_body: String) -> Result<CounterSnapshot, String> {
+        let payload: PingPayload = serde_json::from_str(&request_body)
+            .map_err(|err| json_error(format!("invalid payload: {err}")))?;
+        let message = payload
+            .message
+            .map(|m| m.trim().to_string())
+            .filter(|m| !m.is_empty())
+            .unwrap_or_else(|| "(empty message)".to_string());
+        match message.as_str() {
+            "err" => Err(json_error(format!("simulated error: {message}"))),
+            _ => Ok(self.record_http(message)),
+        }
+    }
+
+    #[local]
+    async fn ping_local(&mut self, message: String) -> Result<CounterSnapshot, String> {
+        let message = message.trim().to_string();
+        let message = if message.is_empty() {
+            "(empty message)".to_string()
+        } else {
+            message
+        };
+        Ok(self.record_local(message))
+        // Ok(self.record_local(message))
+    }
+
+    #[http]
+    async fn send_message(&mut self, request_body: String) -> Result<CounterSnapshot, String> {
+        let payload: SendMessagePayload = serde_json::from_str(&request_body)
+            .map_err(|err| json_error(format!("invalid payload: {err}")))?;
+
+        let message = payload.message.trim().to_string();
+        if message.is_empty() {
+            return Err(json_error("message cannot be empty"));
+        }
+
+        let our_address = our();
+
+        match payload.mode {
+            SendMode::Local => {
+                let snapshot = dispatch_ping(our_address.clone(), "PingLocal", &message).await?;
+                Ok(snapshot)
+            }
+            SendMode::Remote => {
+                let target_node = payload
+                    .target_node
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| our_address.node());
+
+                let process_id = ProcessId::new(
+                    Some(our_address.process()),
+                    our_address.package(),
+                    our_address.publisher(),
+                );
+                println!("Sending to remote node: {target_node}");
+                println!("Process ID: {}", process_id);
+                let target = Address::new(target_node.to_string(), process_id);
+                let snapshot = dispatch_ping(target, "PingRemote", &message).await?;
+                Ok(snapshot)
+            }
+            SendMode::RemoteMismatch => {
+                let target_node = payload
+                    .target_node
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| json_error("remote-mismatch requires a target node"))?;
+
+                let process_id = ProcessId::new(
+                    Some(our_address.process()),
+                    our_address.package(),
+                    our_address.publisher(),
+                );
+                println!("Triggering remote mismatch on node: {target_node}");
+                println!("Process ID: {}", process_id);
+                let target = Address::new(target_node.to_string(), process_id);
+                let snapshot = dispatch_ping(target, "PingLocal", &message).await?;
+                Ok(snapshot)
+            }
+        }
+    }
+
+    #[remote]
+    async fn ping_remote(&mut self, message: String) -> Result<CounterSnapshot, String> {
+        let message = message.trim().to_string();
+        let message = if message.is_empty() {
+            "(empty message)".to_string()
+        } else {
+            message
         };
 
-        self.counter += amount;
-        self.messages.push(format!("Counter incremented by {}", amount));
-
-        Ok(self.counter)
+        Ok(self.record_remote(message))
     }
-
-    // HTTP ENDPOINT RETURNING COMPLEX DATA
-    // For complex types, return as JSON string to avoid WIT limitations
-    #[http]
-    async fn get_messages(&self, _request_body: String) -> String {
-        serde_json::to_string(&self.messages).unwrap_or_else(|_| "[]".to_string())
-    }
-
 }
 
+async fn dispatch_ping(
+    target: Address,
+    variant: &str,
+    message: &str,
+) -> Result<CounterSnapshot, String> {
+    let body = serde_json::to_vec(&json!({ variant: message }))
+        .map_err(|err| json_error(err.to_string()))?;
 
-// WIT TYPE COMPATIBILITY NOTES:
-// The hyperprocess macro generates WebAssembly Interface Types from your code.
-// Supported types:
-// ✅ Primitives: bool, u8-u64, i8-i64, f32, f64, String
-// ✅ Vec<T> where T is supported
-// ✅ Option<T> where T is supported
-// ✅ Simple structs with public fields
-// ❌ HashMap - use Vec<(K,V)> instead
-// ❌ Fixed arrays [T; N] - use Vec<T>
-// ❌ Complex enums with data
-//
-// Workaround: Return complex data as JSON strings
+    let request = Request::to(target).expects_response(5).body(body);
 
-// COMMON PATTERNS:
+    match send::<Result<CounterSnapshot, String>>(request).await {
+        Ok(Ok(snapshot)) => Ok(snapshot),
+        Ok(Err(err)) => Err(err),
+        Err(err) => Err(json_error(err.to_string())),
+    }
+}
 
-// 1. STATE MANAGEMENT
-// Your AppState is automatically persisted based on save_config
-// Access current state with &self (read) or &mut self (write)
-
-// 2. ERROR HANDLING
-// Return Result<T, String> for fallible operations
-// The String error will be sent to the frontend
-
-// 3. FRONTEND COMMUNICATION
-// Frontend calls HTTP endpoints via POST to /api
-// Body format: { "MethodName": parameters }
-
-// 4. P2P PATTERNS
-// - See the P2P patterns guide for implementing P2P features
-// - Use #[remote] for methods other nodes can call
-// - Use Request API for calling other nodes
-// - Always set timeouts for remote calls
-
-// 5. SYSTEM INTEGRATION
-// Common system processes you might interact with:
-// - "vfs:distro:sys" - Virtual file system
-// - "http-server:distro:sys" - HTTP server (automatic with macro)
-// - "timer:distro:sys" - Timers and scheduling
-// - "kv:distro:sys" - Key-value storage
-
-// DEVELOPMENT WORKFLOW:
-// 1. Define your AppState structure
-// 2. Add HTTP endpoints for UI interaction
-// 3. Add remote endpoints for P2P features
-// 4. Build with: kit b --hyperapp
-// 5. Start with: kit s
-// 6. Access at: http://localhost:8080
-
-// DEBUGGING TIPS:
-// - Use println! for backend logs (appears in terminal)
-// - Check browser console for frontend errors
-// - Common issues:
-//   * Missing _request_body parameter
-//   * Wrong parameter format (object vs tuple)
-//   * ProcessId parsing errors
-//   * Missing /our.js in HTML
+fn json_error(message: impl Into<String>) -> String {
+    serde_json::json!({ "error": message.into() }).to_string()
+}

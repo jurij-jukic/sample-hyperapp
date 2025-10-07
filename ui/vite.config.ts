@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 /*
 If you are developing a UI outside of a Hyperware project,
@@ -23,6 +24,11 @@ console.log('process.env.VITE_NODE_URL', process.env.VITE_NODE_URL, PROXY_URL);
 export default defineConfig({
   plugins: [react()],
   base: BASE_URL,
+  resolve: {
+    alias: {
+      '#caller-utils': resolve(__dirname, '../target/ui/caller-utils.ts'),
+    },
+  },
   build: {
     rollupOptions: {
       external: ['/our.js']
@@ -45,23 +51,6 @@ export default defineConfig({
         target: PROXY_URL,
         changeOrigin: true,
       },
-      // '/example': {
-      //   target: PROXY_URL,
-      //   changeOrigin: true,
-      //   rewrite: (path) => path.replace(BASE_URL, ''),
-      // // This is only for debugging purposes
-      //   configure: (proxy, _options) => {
-      //     proxy.on('error', (err, _req, _res) => {
-      //       console.log('proxy error', err);
-      //     });
-      //     proxy.on('proxyReq', (proxyReq, req, _res) => {
-      //       console.log('Sending Request to the Target:', req.method, req.url);
-      //     });
-      //     proxy.on('proxyRes', (proxyRes, req, _res) => {
-      //       console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-      //     });
-      //   },
-      // },
     }
   }
 });

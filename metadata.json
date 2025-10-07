@@ -1,11 +1,11 @@
 {
-  "name": "SkeletonApp",
-  "description": "A minimal skeleton app for the Hyperware platform using the Hyperapp framework - demonstrates basic state management and HTTP endpoints",
+  "name": "SampleHyperapp",
+  "description": "Demonstrates HTTP, local, and remote ping handlers with counters and a simple UI.",
   "image": "",
   "properties": {
-    "package_name": "skeleton-app",
+    "package_name": "sample-hyperapp",
     "current_version": "0.1.0",
-    "publisher": "skeleton.os",
+    "publisher": "sample.os",
     "mirrors": [],
     "code_hashes": {
       "0.1.0": ""

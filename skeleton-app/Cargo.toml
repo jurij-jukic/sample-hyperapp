@@ -1,32 +1,35 @@
-[package]
-name = "skeleton-app"
-version = "0.1.0"
-edition = "2021"
+[dependencies]
+anyhow = "1.0"
+process_macros = "0.1"
+serde_json = "1.0"
+wit-bindgen = "0.42.1"
+
+[dependencies.caller-utils]
+optional = true
+path = "../target/caller-utils"
+
+[dependencies.hyperprocess_macro]
+path = "../../hyperprocess-macro"
+
+[dependencies.hyperware_process_lib]
+features = ["hyperapp"]
+git = "https://github.com/hyperware-ai/process_lib"
+rev = "b9f1ead"
+
+[dependencies.serde]
+features = ["derive"]
+version = "1.0"
+
+[features]
+simulation-mode = []
 
 [lib]
 crate-type = ["cdylib"]
 
+[package]
+edition = "2021"
+name = "skeleton-app"
+version = "0.1.0"
+
 [package.metadata.component]
 package = "hyperware:process"
-
-[dependencies]
-# Core dependencies for Hyperware apps
-anyhow = "1.0"
-hyperware_process_lib = { git = "https://github.com/hyperware-ai/process_lib", features = ["hyperapp"], rev = "d67b65e" }
-process_macros = "0.1"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-wit-bindgen = "0.42.1"
-
-# IMPORTANT: hyperprocess_macro provides async support and WIT generation
-[dependencies.hyperprocess_macro]
-git = "https://github.com/hyperware-ai/hyperprocess-macro"
-rev = "66884c0"
-
-# Optional dependencies you might need:
-# uuid = { version = "1.4.1", features = ["v4", "serde"] }
-# chrono = { version = "0.4", features = ["serde"] }
-
-[features]
-# Use simulation-mode for testing without a full Hyperware node
-simulation-mode = []
