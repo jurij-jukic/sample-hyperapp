@@ -21,6 +21,7 @@ interface SampleState {
   mismatchNode: string;
   mismatchMessage: string;
   isSubmitting: boolean;
+  isHttpMismatchSubmitting: boolean;
   isMismatchSubmitting: boolean;
   isLoading: boolean;
   error: string | null;
@@ -33,6 +34,7 @@ interface SampleState {
   setMismatchNode: (value: string) => void;
   setMismatchMessage: (value: string) => void;
   sendHttpPing: () => Promise<void>;
+  triggerHttpMismatch: () => Promise<void>;
   sendProcessMessage: () => Promise<void>;
   triggerMismatch: () => Promise<void>;
   clearError: () => void;
@@ -51,6 +53,7 @@ export const useSampleStore = create<SampleState>((set, get) => ({
   mismatchNode: '',
   mismatchMessage: '',
   isSubmitting: false,
+  isHttpMismatchSubmitting: false,
   isMismatchSubmitting: false,
   isLoading: false,
   error: null,
@@ -96,6 +99,32 @@ export const useSampleStore = create<SampleState>((set, get) => ({
       set({ counters: snapshot, httpMessage: '', isSubmitting: false });
     } catch (error) {
       set({ error: getErrorMessage(error), isSubmitting: false });
+    }
+  },
+
+  triggerHttpMismatch: async () => {
+    const state = get();
+    const message = state.httpMessage.trim() || 'mismatch-trigger';
+
+    set({ isHttpMismatchSubmitting: true, error: null });
+    try {
+      const response = await fetch('/api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ PingLocal: message }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+
+      set({ isHttpMismatchSubmitting: false });
+      await get().refresh();
+    } catch (error) {
+      set({ error: getErrorMessage(error), isHttpMismatchSubmitting: false });
     }
   },
 
@@ -175,6 +204,7 @@ export const useSampleSelectors = {
   mismatchNode: () => useSampleStore((state) => state.mismatchNode),
   mismatchMessage: () => useSampleStore((state) => state.mismatchMessage),
   isSubmitting: () => useSampleStore((state) => state.isSubmitting),
+  isHttpMismatchSubmitting: () => useSampleStore((state) => state.isHttpMismatchSubmitting),
   isMismatchSubmitting: () => useSampleStore((state) => state.isMismatchSubmitting),
   isLoading: () => useSampleStore((state) => state.isLoading),
   error: () => useSampleStore((state) => state.error),
@@ -187,6 +217,7 @@ export const useSampleSelectors = {
   setMismatchNode: () => useSampleStore((state) => state.setMismatchNode),
   setMismatchMessage: () => useSampleStore((state) => state.setMismatchMessage),
   sendHttpPing: () => useSampleStore((state) => state.sendHttpPing),
+  triggerHttpMismatch: () => useSampleStore((state) => state.triggerHttpMismatch),
   sendProcessMessage: () => useSampleStore((state) => state.sendProcessMessage),
   triggerMismatch: () => useSampleStore((state) => state.triggerMismatch),
   clearError: () => useSampleStore((state) => state.clearError),

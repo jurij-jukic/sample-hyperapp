@@ -22,6 +22,7 @@ function App() {
   const mismatchNode = useSampleSelectors.mismatchNode();
   const mismatchMessage = useSampleSelectors.mismatchMessage();
   const isSubmitting = useSampleSelectors.isSubmitting();
+  const isHttpMismatchSubmitting = useSampleSelectors.isHttpMismatchSubmitting();
   const isMismatchSubmitting = useSampleSelectors.isMismatchSubmitting();
   const isLoading = useSampleSelectors.isLoading();
   const error = useSampleSelectors.error();
@@ -34,6 +35,7 @@ function App() {
   const setMismatchNode = useSampleSelectors.setMismatchNode();
   const setMismatchMessage = useSampleSelectors.setMismatchMessage();
   const sendHttpPing = useSampleSelectors.sendHttpPing();
+  const triggerHttpMismatch = useSampleSelectors.triggerHttpMismatch();
   const sendProcessMessage = useSampleSelectors.sendProcessMessage();
   const triggerMismatch = useSampleSelectors.triggerMismatch();
   const clearError = useSampleSelectors.clearError();
@@ -94,7 +96,19 @@ function App() {
             <button type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Sending…' : 'Send Ping'}
             </button>
+            <button
+              type="button"
+              className="danger-action"
+              onClick={() => triggerHttpMismatch()}
+              disabled={isHttpMismatchSubmitting}
+            >
+              {isHttpMismatchSubmitting ? 'Triggering…' : 'HTTP Mismatch'}
+            </button>
           </form>
+          <p className="hint">
+            The mismatch button POSTs a `PingLocal` payload to the HTTP endpoint, which should drive the
+            backend into the unexpected-variant path without taking down the process.
+          </p>
         </section>
 
         <section className="card danger-card">

@@ -140,6 +140,16 @@ html,
   cursor: pointer;
 }
 
+.ping-form .danger-action {
+  background: linear-gradient(135deg, rgba(244, 111, 111, 0.85), rgba(255, 153, 102, 0.85));
+}
+
+.hint {
+  margin-top: 0.85rem;
+  font-size: 0.85rem;
+  color: rgba(214, 226, 255, 0.7);
+}
+
 .message-form {
   display: flex;
   flex-direction: column;
